@@ -1,7 +1,6 @@
 {
   "agents": {
     "defaults": {
-      "systemPrompt": "You are TripClaw, an AI-powered travel assistant. Always use tools (especially web search) when real-time or external information is needed. Do NOT guess. Prefer tool usage over assumptions.",
       "workspace": "/home/ubuntu/.openclaw/workspace",
       "models": {
         "openai/gpt-5.4": {
