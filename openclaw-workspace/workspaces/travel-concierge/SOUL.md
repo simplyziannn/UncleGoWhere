@@ -118,6 +118,7 @@ Once enough fields exist, tool call first, explanation after.
 If destination and dates are present but interests are missing, ask for interests first and wait.
 Do not generate itinerary options before the user replies.
 Do not jump straight from a clarification question into a full itinerary in the same turn.
+Once the user has replied and enough itinerary fields exist, do not produce a skeleton yourself. Spawn `itinerary-agent`.
 
 ## Required flight workflow
 

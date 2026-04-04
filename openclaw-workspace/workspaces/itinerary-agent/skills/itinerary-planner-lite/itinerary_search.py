@@ -51,6 +51,11 @@ class Event:
     description: str = ""
 
 
+def _google_search_link(*parts: str) -> str:
+    query = " ".join(part.strip() for part in parts if part and part.strip())
+    return f"https://www.google.com/search?q={quote_plus(query)}" if query else ""
+
+
 def _get_env(name: str) -> Optional[str]:
     value = os.getenv(name)
     return value.strip() if value else None
@@ -363,12 +368,9 @@ def _place_label(place: Place) -> str:
         parts.append(place.address)
     if place.rating is not None:
         parts.append(f"rating {place.rating:.1f}")
-    query_bits = [place.name]
-    if place.address:
-        query_bits.append(place.address)
-    query = " ".join(query_bits).strip()
-    if query:
-        parts.append(f"https://www.google.com/search?q={quote_plus(query)}")
+    link = _google_search_link(place.name, place.address)
+    if link:
+        parts.append(link)
     return ", ".join(parts)
 
 
@@ -397,6 +399,8 @@ def build_itinerary(
     interests = list(interests or [])
     must_see = list(must_see or [])
     dietary_constraints = list(dietary_constraints or [])
+    if not interests:
+        interests = ["landmarks", "food", "neighborhood walks", "culture"]
 
     start, total_days = _resolve_trip_days(start_date, end_date, days)
     trip_dates = _daterange(start, total_days) if start else [None] * total_days
@@ -438,6 +442,12 @@ def build_itinerary(
         if lunch:
             morning += f" Pause for lunch at {_place_label(lunch)}."
 
+        lunch_line = (
+            f"Lunch at {_place_label(lunch)}."
+            if lunch
+            else f"Lunch in a well-rated local area near {destination}."
+        )
+
         afternoon_target = daytime_places[1] if len(daytime_places) > 1 else evening_place
         afternoon = (
             f"Continue to {_place_label(afternoon_target)}."
@@ -457,6 +467,12 @@ def build_itinerary(
         else:
             evening = f"Keep the evening light with a local dinner and short stroll in {destination}."
 
+        dinner_line = (
+            f"Dinner at {_place_label(dinner)}."
+            if dinner
+            else f"Dinner near your base in {destination}."
+        )
+
         notes = [
             _weather_note(date_value, weather_summary),
             "Transit times are approximate; verify live opening hours before locking bookings.",
@@ -472,6 +488,8 @@ def build_itinerary(
                 "morning": morning,
                 "afternoon": afternoon,
                 "evening": evening,
+                "lunch": lunch_line,
+                "dinner": dinner_line,
                 "notes": " ".join(notes),
             }
         )
@@ -486,6 +504,11 @@ def build_itinerary(
 
     return {
         "header": f"Itinerary for {destination} ({date_label})",
+        "base_template": {
+            "recommended_area": f"Stay near a central transit-friendly base in {destination}",
+            "room_setup": "Template: 2 to 3 rooms or a group-friendly serviced apartment",
+            "why": "Keeps daily transit simple and gives easy access to food and train lines without doing a full hotel search.",
+        },
         "days": days_output,
         "meta": {
             "attractions_found": len(attractions),
@@ -498,6 +521,13 @@ def build_itinerary(
 def format_itinerary(plan: Dict[str, object]) -> str:
     header = str(plan.get("header") or "Itinerary")
     lines = [header]
+    base = plan.get("base_template")
+    if isinstance(base, dict):
+        lines.append("")
+        lines.append("Base template")
+        lines.append(f"Recommended area: {base.get('recommended_area', '')}")
+        lines.append(f"Room setup: {base.get('room_setup', '')}")
+        lines.append(f"Why: {base.get('why', '')}")
     for day in plan.get("days", []):
         if not isinstance(day, dict):
             continue
@@ -506,6 +536,8 @@ def format_itinerary(plan: Dict[str, object]) -> str:
         lines.append(f"Morning: {day.get('morning', '')}")
         lines.append(f"Afternoon: {day.get('afternoon', '')}")
         lines.append(f"Evening: {day.get('evening', '')}")
+        lines.append(f"Lunch: {day.get('lunch', '')}")
+        lines.append(f"Dinner: {day.get('dinner', '')}")
         lines.append(f"Notes: {day.get('notes', '')}")
     return "\n".join(lines)
 

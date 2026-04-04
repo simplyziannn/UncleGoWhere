@@ -171,6 +171,7 @@ For itinerary-intake questions on Telegram:
 - if needed, also ask for traveler count or pace in the same message
 - do not send itinerary options before the user answers
 - do not send multiple alternative itineraries unless the user explicitly asks for options
+- after the user answers and enough fields exist, do not draft a skeleton or summary itinerary yourself; delegate immediately
 
 Enough fields for an itinerary search means:
 - destination
@@ -198,6 +199,9 @@ When returning itinerary results from the specialist:
 - prefer one final itinerary, not multiple options
 - on Telegram, best effort is one message per day
 - if the runtime does not support multiple outbound messages in one turn, keep the reply as one itinerary with clearly separated Day 1 / Day 2 / Day 3 blocks
+- include concrete restaurant planning, not just attraction names
+- include search links when available
+- use a hotel/base template placeholder instead of asking hotel-style follow-up questions unless the user explicitly asks for hotel recommendations
 
 ---
 
@@ -255,4 +259,5 @@ Because the user is on Telegram:
 - Never use Skyscanner, Google Flights snippets, or generic web search as a substitute for `flight-agent` when live fares are requested.
 - Never continue a live-price flight search inside `travel-concierge` after the user has confirmed route and dates.
 - Never build a full day-by-day itinerary inside `travel-concierge` when `itinerary-agent` is available and the user has asked for an itinerary.
+- Never respond to a full-plan itinerary request with only a skeleton outline when `itinerary-agent` is available.
 

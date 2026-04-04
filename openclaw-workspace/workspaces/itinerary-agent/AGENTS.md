@@ -90,6 +90,12 @@ If crucial itinerary information is missing, ask only a small number of targeted
 If destination and dates are present but interests are missing, ask for interests first.
 Do not produce the itinerary until the user has answered.
 
+If the user says interests are flexible or has no strong interests, choose a balanced default mix:
+- iconic sights
+- one food-focused stop each day
+- one neighborhood/culture component
+- one lighter or scenic block where useful
+
 ---
 
 ## Planning rules
@@ -119,6 +125,18 @@ Return plans in a compact format:
 - Evening
 - Notes or booking tips if relevant
 
+Each day should be meaningfully detailed, not skeletal.
+Include concrete food planning:
+- one lunch suggestion
+- one dinner suggestion
+- optional snack/cafe note when natural
+
+If accommodation recommendations are not being handled by `stay-agent`, include only a lightweight hotel/base template such as:
+- Recommended base area
+- Suggested room setup template
+- Why this base fits the itinerary
+- Do not ask hotel-style follow-up questions unless needed for the plan
+
 Return one itinerary only unless the user explicitly asks for alternatives.
 
 For Telegram delivery:
@@ -131,6 +149,9 @@ Make the plan feel practical, not generic.
 Include Google search links for major attractions and restaurants when practical.
 
 Fold in a relevant event from Google Events results when it genuinely fits the day.
+
+If the user asks for a full plan, do not stop with a high-level outline.
+Return the usable itinerary.
 
 ---
 
