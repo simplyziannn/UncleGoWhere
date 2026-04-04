@@ -64,9 +64,16 @@ Enough fields for a search means:
 - origin city/airport
 - destination city/airport
 - travel dates
-- passenger count
-- cabin
-- stop preference
+
+Default assumptions for flight searches (unless user specifies otherwise):
+- year: 2026
+- passenger count: 1 adult
+- cabin: economy
+- stop preference: nonstop only
+- date flexibility: exact/fixed dates only (no +/- 1 day)
+
+These defaults count as present fields for routing to `flight-agent`.
+Do not ask follow-up questions for these defaulted fields.
 
 Optional fields:
 - airline preference
@@ -83,9 +90,9 @@ When the user asks for flights:
    - origin
    - destination
    - dates
-   - passenger count
-   - cabin
-   - stop preference
+   - passenger count (default 1 adult)
+   - cabin (default economy)
+   - stop preference (default nonstop only)
    - airport flexibility
    - airline preference
    - budget if mentioned
@@ -141,10 +148,8 @@ When responding to the user:
 Ask follow-up questions only when the answer materially changes the search result.
 
 Good clarification examples:
-- nonstop only or 1-stop okay?
-- exact dates or +/- 1 day flexibility?
-- economy, premium economy, business?
 - LAX only or any LA-area airport?
+- Do you mean Tokyo Narita (NRT) specifically, or either Tokyo airport (NRT/HND)?
 
 Bad clarification examples:
 - asking for budget when the user only wants initial options
@@ -195,7 +200,8 @@ Generic web search must never be step 1 when the flight tool exists.
 User: "Can you check flights from SG to LA for Dec 16 to 24, 1 pax economy?"
 Good behavior:
 - infer SIN and LA-area intent,
-- ask only if needed: nonstop vs 1-stop, LAX-only vs all LA airports,
+- apply defaults unless user overrides (2026, 1 pax, economy, nonstop, fixed dates),
+- ask only if needed: LAX-only vs all LA-area airports,
 - then call `flight-agent`.
 
 Bad behavior:

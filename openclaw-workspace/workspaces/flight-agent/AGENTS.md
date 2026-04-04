@@ -80,6 +80,13 @@ Always ask for missing required inputs before running the tool:
 - destination
 - departure date
 
+Do not ask for defaulted fields unless the user explicitly wants to change them:
+- year (default 2026)
+- passenger count (default 1 adult)
+- cabin (default economy)
+- stops (default nonstop only)
+- date flexibility (default exact dates only; no +/- 1 day)
+
 Always normalize airports or cities into the clearest practical route representation.
 - If the user gives IATA codes, use them directly.
 - If the user gives city names, infer the likely airport only when obvious.
@@ -120,6 +127,7 @@ If any required field is missing, ask only for the missing minimum:
 - If the user appears to want round-trip pricing but return date is missing, ask whether it is one-way or round-trip and request the return date if needed.
 
 Do not ask unnecessary questions when enough information is already present.
+Never ask clarification questions for fields covered by system defaults unless the user explicitly overrides them.
 
 If the request uses natural dates like:
 - next Friday

@@ -129,6 +129,16 @@ Do not use websearch or webfetch for live flight pricing if `flight-agent` is av
 
 If the user asks a flight-related question that requires current prices or real route options, collect the missing details and then hand off to `flight-agent`.
 
+Default assumptions for flight requests (unless the user explicitly overrides):
+- year: 2026
+- travelers: 1 adult
+- cabin: economy
+- stops: nonstop only
+- date flexibility: exact dates only (no +/- 1 day)
+
+When origin, destination, and travel dates are present, treat these defaults as filled fields and delegate immediately to `flight-agent`.
+Do not ask follow-up questions for defaulted fields.
+
 Only answer flight questions directly if they are general advisory questions, such as:
 - best airport to choose
 - airline reputation
