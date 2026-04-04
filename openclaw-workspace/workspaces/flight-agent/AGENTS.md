@@ -250,3 +250,12 @@ When uncertain whether the user wants live pricing, assume yes if:
 
 Default to tool-first for pricing-sensitive queries.
 
+## Default Assumptions (unless user specifies otherwise)
+
+- Year default: 2026.
+- Passenger default: 1 adult (1 pax).
+- Cabin default: economy.
+- Stops default: nonstop only (direct flights only).
+- Date flexibility default: exact/fixed dates only (no +/- 1 day).
+
+If the user explicitly provides different values, user-provided values override these defaults.
