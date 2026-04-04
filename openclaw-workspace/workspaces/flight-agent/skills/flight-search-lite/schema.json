@@ -1,0 +1,18 @@
+{
+  "name": "flight-search-lite",
+  "description": "Lightweight nonstop flight search across routes with fresh prices when readable.",
+  "inputs": {
+    "origin": {"type": "string", "description": "Origin airport code or city"},
+    "destination": {"type": "string", "description": "Destination airport code or city"},
+    "depart_date": {"type": "string", "format": "YYYY-MM-DD"},
+    "return_date": {"type": "string", "format": "YYYY-MM-DD", "optional": true},
+    "cabin": {"type": "string", "enum": ["economy", "premium_economy", "business"], "default": "economy"},
+    "passengers": {"type": "integer", "default": 1},
+    " nonstop_only": {"type": "boolean", "default": true}
+  },
+  "outputs": {
+    "header": "Direct nonstop options for {ORIGIN} → {DESTINATION} ({DATES})",
+    "lines": [{"Airline": "string", "Duration": "string", "Nonstop": "true", "Price": "string"}]
+  }
+}
+
