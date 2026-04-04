@@ -17,6 +17,7 @@ import math
 import os
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from urllib.parse import quote_plus
 
 import requests
 
@@ -362,6 +363,12 @@ def _place_label(place: Place) -> str:
         parts.append(place.address)
     if place.rating is not None:
         parts.append(f"rating {place.rating:.1f}")
+    query_bits = [place.name]
+    if place.address:
+        query_bits.append(place.address)
+    query = " ".join(query_bits).strip()
+    if query:
+        parts.append(f"https://www.google.com/search?q={quote_plus(query)}")
     return ", ".join(parts)
 
 

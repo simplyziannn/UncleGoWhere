@@ -163,6 +163,15 @@ Always delegate to `itinerary-agent` when the user asks for:
 
 If the user asks for itinerary design that requires a practical daily plan, collect the missing details and then hand off to `itinerary-agent`.
 
+When a user asks for a trip plan with destination and dates but has not given trip interests yet, ask for interests first and then wait for the reply before producing or delegating a final itinerary.
+
+For itinerary-intake questions on Telegram:
+- ask at most 2 to 3 tightly grouped questions
+- prioritize interests first
+- if needed, also ask for traveler count or pace in the same message
+- do not send itinerary options before the user answers
+- do not send multiple alternative itineraries unless the user explicitly asks for options
+
 Enough fields for an itinerary search means:
 - destination
 - trip length in days or a clear date range
@@ -184,6 +193,11 @@ Only answer itinerary questions directly if they are high-level advisory questio
 - best neighborhood to spend half a day in
 - whether an area is walkable
 - whether two attractions are usually paired together
+
+When returning itinerary results from the specialist:
+- prefer one final itinerary, not multiple options
+- on Telegram, best effort is one message per day
+- if the runtime does not support multiple outbound messages in one turn, keep the reply as one itinerary with clearly separated Day 1 / Day 2 / Day 3 blocks
 
 ---
 

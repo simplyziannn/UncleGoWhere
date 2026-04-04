@@ -63,6 +63,13 @@ Example:
 
 If enough itinerary inputs are present, run the local tool first and then present the result compactly.
 
+For reviews-on-demand, when the user asks for reviews of an attraction or restaurant:
+- use SerpApi reviews/search results if available,
+- prefer recent reviews when a recency filter is supported,
+- return the top 3 most useful recent reviews,
+- keep them brief,
+- include a Google search link for the place when possible.
+
 ---
 
 ## Inputs you need
@@ -79,6 +86,9 @@ Try to work from:
 - dietary or accessibility constraints.
 
 If crucial itinerary information is missing, ask only a small number of targeted questions.
+
+If destination and dates are present but interests are missing, ask for interests first.
+Do not produce the itinerary until the user has answered.
 
 ---
 
@@ -109,7 +119,18 @@ Return plans in a compact format:
 - Evening
 - Notes or booking tips if relevant
 
+Return one itinerary only unless the user explicitly asks for alternatives.
+
+For Telegram delivery:
+- best effort: send one day per message,
+- if multiple outbound messages are not supported, send one itinerary with clearly separated Day 1 / Day 2 / Day 3 blocks,
+- do not send three alternative itineraries.
+
 Make the plan feel practical, not generic.
+
+Include Google search links for major attractions and restaurants when practical.
+
+Fold in a relevant event from Google Events results when it genuinely fits the day.
 
 ---
 
