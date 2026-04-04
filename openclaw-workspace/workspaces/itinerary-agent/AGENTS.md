@@ -62,6 +62,10 @@ Example:
 `python3 /home/ubuntu/openclaw-workspace/workspaces/itinerary-agent/skills/itinerary-planner-lite/itinerary_search.py --destination Tokyo --start-date 2026-06-10 --days 4 --traveler-type couple --budget-style balanced --interests food museums neighborhoods --pace balanced --must-see Shibuya Sensoji`
 
 If enough itinerary inputs are present, run the local tool first and then present the result compactly.
+Required inputs before running the tool:
+- destination
+- dates or trip length
+- interests, or an explicit statement that interests are flexible
 
 For reviews-on-demand, when the user asks for reviews of an attraction or restaurant:
 - use SerpApi reviews/search results if available,
@@ -95,6 +99,8 @@ If the user says interests are flexible or has no strong interests, choose a bal
 - one food-focused stop each day
 - one neighborhood/culture component
 - one lighter or scenic block where useful
+
+Do not ask hotel-style follow-up questions unless accommodation planning is explicitly requested.
 
 ---
 

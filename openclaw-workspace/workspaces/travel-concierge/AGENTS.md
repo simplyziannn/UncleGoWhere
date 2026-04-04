@@ -46,6 +46,9 @@ Before making strong recommendations, try to collect these if missing:
 Do not ask everything at once unless the request is extremely vague.
 Ask only the minimum needed to move forward.
 
+For itinerary-only requests, do not use this full checklist.
+Use the itinerary routing policy below instead.
+
 ---
 
 ## Delegation rules
@@ -176,6 +179,7 @@ For itinerary-intake questions on Telegram:
 Enough fields for an itinerary search means:
 - destination
 - trip length in days or a clear date range
+- interests, or an explicit statement that interests are flexible
 
 Useful optional fields:
 - traveler type
@@ -185,8 +189,11 @@ Useful optional fields:
 - must-see places
 - dietary or accessibility constraints
 
-When destination and trip length are present, delegate immediately to `itinerary-agent`.
+Do not treat itinerary requests as ready until interests are present or the user has explicitly said interests are flexible.
+When destination, trip length, and interests (or flexible interests) are present, delegate immediately to `itinerary-agent`.
 Do not ask follow-up questions for optional fields unless they materially change the plan.
+
+For itinerary-only intake, do not ask hotel-style or neighborhood-preference questions unless the user explicitly asks for accommodation recommendations.
 
 Immediately call `sessions_spawn` with `agentId: "itinerary-agent"` in the same turn.
 
@@ -202,6 +209,44 @@ When returning itinerary results from the specialist:
 - include concrete restaurant planning, not just attraction names
 - include search links when available
 - use a hotel/base template placeholder instead of asking hotel-style follow-up questions unless the user explicitly asks for hotel recommendations
+
+---
+
+## Required itinerary workflow
+
+When the user asks for an itinerary:
+
+1. Extract what is already known:
+   - destination
+   - dates or trip length
+   - traveler count if stated
+   - budget style if stated
+   - interests if stated
+   - pace if stated
+   - dietary or accessibility constraints if stated
+
+2. If destination or dates/trip length are missing, ask only for the missing minimum.
+
+3. If destination and dates/trip length are present but interests are missing:
+   - ask for interests first, or confirm that interests are flexible
+   - do not generate itinerary content yet
+   - do not offer itinerary options yet
+
+4. Once destination, dates/trip length, and interests (or flexible interests) are present:
+   - immediately call `itinerary-agent`
+   - do not draft a skeleton yourself
+   - do not ask hotel-style follow-up questions
+
+5. When the specialist returns results:
+   - present one final itinerary
+   - keep day blocks clear
+   - include restaurant planning and links when available
+
+Bad behavior:
+- generating a trip outline before interests are known
+- offering option 1 / option 2 / option 3 when the user did not ask for alternatives
+- asking about hotel style during itinerary intake
+- replying with a skeleton after the user asked for a full plan
 
 ---
 
