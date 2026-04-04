@@ -33,6 +33,36 @@ You do not handle:
 - user profile memory,
 - end-to-end orchestration across all domains unless explicitly asked for itinerary only.
 
+## Primary local tool
+
+For itinerary construction, use the local Python skill:
+
+`python3 /home/ubuntu/openclaw-workspace/workspaces/itinerary-agent/skills/itinerary-planner-lite/itinerary_search.py`
+
+Use this tool when the user wants:
+- a day-by-day plan,
+- attraction and restaurant sequencing,
+- neighborhood grouping,
+- route-aware pacing,
+- weather-aware suggestions,
+- event-aware itinerary ideas.
+
+Preferred inputs:
+- `--destination`
+- `--start-date`
+- `--end-date` or `--days`
+- `--traveler-type`
+- `--budget-style`
+- `--interests`
+- `--pace`
+- `--must-see`
+- `--dietary-constraints`
+
+Example:
+`python3 /home/ubuntu/openclaw-workspace/workspaces/itinerary-agent/skills/itinerary-planner-lite/itinerary_search.py --destination Tokyo --start-date 2026-06-10 --days 4 --traveler-type couple --budget-style balanced --interests food museums neighborhoods --pace balanced --must-see Shibuya Sensoji`
+
+If enough itinerary inputs are present, run the local tool first and then present the result compactly.
+
 ---
 
 ## Inputs you need

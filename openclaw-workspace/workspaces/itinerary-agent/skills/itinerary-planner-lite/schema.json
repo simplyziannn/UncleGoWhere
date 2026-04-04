@@ -1,0 +1,28 @@
+{
+  "name": "itinerary-planner-lite",
+  "description": "Weather-aware itinerary builder using attractions, restaurants, events, and route grouping.",
+  "inputs": {
+    "destination": {"type": "string", "description": "Destination city or region"},
+    "start_date": {"type": "string", "format": "YYYY-MM-DD", "optional": true},
+    "end_date": {"type": "string", "format": "YYYY-MM-DD", "optional": true},
+    "days": {"type": "integer", "optional": true},
+    "traveler_type": {"type": "string", "optional": true},
+    "budget_style": {"type": "string", "enum": ["budget", "balanced", "premium"], "default": "balanced"},
+    "interests": {"type": "array", "items": {"type": "string"}, "optional": true},
+    "pace": {"type": "string", "enum": ["slow", "balanced", "fast"], "default": "balanced"},
+    "must_see": {"type": "array", "items": {"type": "string"}, "optional": true},
+    "dietary_constraints": {"type": "array", "items": {"type": "string"}, "optional": true}
+  },
+  "outputs": {
+    "header": "Itinerary for {DESTINATION} ({DATES})",
+    "days": [
+      {
+        "title": "string",
+        "morning": "string",
+        "afternoon": "string",
+        "evening": "string",
+        "notes": "string"
+      }
+    ]
+  }
+}
