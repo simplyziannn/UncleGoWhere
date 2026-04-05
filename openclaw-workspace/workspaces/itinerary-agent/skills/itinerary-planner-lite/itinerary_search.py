@@ -16,6 +16,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import quote_plus
 
@@ -28,6 +29,36 @@ SCHEMA = json.loads(
 
 SERPAPI_URL = "https://serpapi.com/search"
 OPENWEATHER_FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
+GENERIC_MEAL_TEXT_FRAGMENTS = (
+    "food anchors",
+    "rough dining ideas",
+    "flexible dining",
+    "flexible choice",
+    "well-rated local area",
+    "near your base",
+    "light meals in local neighborhoods",
+)
+MATCH_STOPWORDS = {
+    "the",
+    "and",
+    "tokyo",
+    "japan",
+    "city",
+    "ward",
+    "street",
+    "road",
+    "avenue",
+    "district",
+    "station",
+    "building",
+    "near",
+    "best",
+    "local",
+    "restaurant",
+    "restaurants",
+    "cafe",
+    "cafes",
+}
 
 
 @dataclass
@@ -247,33 +278,138 @@ def search_attractions(destination: str, interests: Sequence[str], must_see: Seq
     return places[:18]
 
 
-def search_restaurants(destination: str, dietary_constraints: Sequence[str], budget_style: str) -> Dict[str, List[Place]]:
-    diet = " ".join(dietary_constraints[:2]).strip()
-    breakfast_query = f"{diet} breakfast cafes in {destination}".strip()
-    budget_query = f"{diet} budget restaurants in {destination}".strip()
-    best_query = f"{diet} best restaurants in {destination}".strip()
-    if budget_style == "premium":
-        budget_query = f"{diet} casual restaurants in {destination}".strip()
+def _normalize_key(text: str) -> str:
+    return " ".join(text.lower().split())
 
-    try:
-        breakfast_results = _search_local(breakfast_query, destination, limit=8)
-    except Exception:
-        breakfast_results = []
 
-    try:
-        budget_results = _search_local(budget_query, destination, limit=8)
-    except Exception:
-        budget_results = []
+def _sort_places(places: Sequence[Place]) -> List[Place]:
+    return sorted(
+        _dedupe_places(places),
+        key=lambda item: (
+            item.rating is None,
+            -(item.rating or 0),
+            -(item.review_count or 0),
+            item.name,
+        ),
+    )
 
-    try:
-        best_results = _search_local(best_query, destination, limit=8)
-    except Exception:
-        best_results = []
+
+def _search_places_for_queries(queries: Sequence[str], location: str, limit: int = 12) -> List[Place]:
+    results: List[Place] = []
+    seen: set[str] = set()
+
+    for query in queries:
+        normalized_query = " ".join(query.split()).strip()
+        if not normalized_query:
+            continue
+        for resolver in (
+            lambda q=normalized_query: _search_local(q, location, limit=6),
+            lambda q=normalized_query: _search_maps(q, limit=6),
+        ):
+            try:
+                matches = resolver()
+            except Exception:
+                continue
+            for place in matches:
+                key = _normalize_key(f"{place.name}|{place.address}")
+                if key in seen:
+                    continue
+                seen.add(key)
+                results.append(place)
+                if len(results) >= limit:
+                    return _sort_places(results)
+    return _sort_places(results)
+
+
+def _interests_text(interests: Sequence[str]) -> str:
+    return " ".join(str(item).strip().lower() for item in interests if str(item).strip())
+
+
+def _build_restaurant_queries(
+    destination: str,
+    dietary_constraints: Sequence[str],
+    budget_style: str,
+    interests: Sequence[str],
+) -> Dict[str, List[str]]:
+    diet = " ".join(str(item).strip() for item in dietary_constraints[:3] if str(item).strip())
+    diet_prefix = f"{diet} " if diet else ""
+    interest_text = _interests_text(interests)
+    wants_culture = any(token in interest_text for token in ("culture", "cultural", "traditional", "history", "heritage", "local"))
+    wants_food = any(token in interest_text for token in ("food", "culinary", "market", "restaurant", "eat"))
+
+    breakfast_queries = [
+        f"{diet_prefix}breakfast cafes in {destination}",
+        f"{diet_prefix}breakfast restaurants in {destination}",
+    ]
+    lunch_queries = [
+        f"{diet_prefix}best lunch restaurants in {destination}",
+        f"{diet_prefix}local lunch spots in {destination}",
+    ]
+    dinner_queries = [
+        f"{diet_prefix}best dinner restaurants in {destination}",
+        f"{diet_prefix}local dinner spots in {destination}",
+    ]
+
+    if wants_culture:
+        breakfast_queries.append(f"{diet_prefix}traditional japanese breakfast in {destination}")
+        lunch_queries.append(f"{diet_prefix}traditional japanese lunch in {destination}")
+        dinner_queries.append(f"{diet_prefix}traditional japanese dinner in {destination}")
+    if wants_culture or wants_food:
+        breakfast_queries.append(f"{diet_prefix}kissaten in {destination}")
+        lunch_queries.append(f"{diet_prefix}teishoku restaurants in {destination}")
+
+    if budget_style == "budget":
+        lunch_queries.append(f"{diet_prefix}affordable lunch restaurants in {destination}")
+        dinner_queries.append(f"{diet_prefix}affordable dinner restaurants in {destination}")
+        dinner_queries.append(f"{diet_prefix}izakaya in {destination}")
+        budget_queries = [
+            f"{diet_prefix}budget restaurants in {destination}",
+            f"{diet_prefix}affordable japanese restaurants in {destination}",
+        ]
+    elif budget_style == "premium":
+        lunch_queries.append(f"{diet_prefix}premium lunch restaurants in {destination}")
+        dinner_queries.append(f"{diet_prefix}kaiseki in {destination}")
+        budget_queries = [
+            f"{diet_prefix}casual restaurants in {destination}",
+            f"{diet_prefix}quality casual japanese restaurants in {destination}",
+        ]
+    else:
+        lunch_queries.append(f"{diet_prefix}casual lunch restaurants in {destination}")
+        dinner_queries.append(f"{diet_prefix}japanese restaurants in {destination}")
+        budget_queries = [
+            f"{diet_prefix}casual restaurants in {destination}",
+            f"{diet_prefix}mid-range restaurants in {destination}",
+        ]
+
+    best_queries = [
+        f"{diet_prefix}best restaurants in {destination}",
+        f"{diet_prefix}top rated japanese restaurants in {destination}",
+    ]
+    if wants_culture:
+        best_queries.append(f"{diet_prefix}traditional japanese restaurants in {destination}")
 
     return {
-        "breakfast": breakfast_results,
-        "budget": budget_results,
-        "best": best_results,
+        "breakfast": breakfast_queries,
+        "lunch": lunch_queries,
+        "dinner": dinner_queries,
+        "budget": budget_queries,
+        "best": best_queries,
+    }
+
+
+def search_restaurants(
+    destination: str,
+    dietary_constraints: Sequence[str],
+    budget_style: str,
+    interests: Sequence[str],
+) -> Dict[str, List[Place]]:
+    queries = _build_restaurant_queries(destination, dietary_constraints, budget_style, interests)
+    return {
+        "breakfast": _search_places_for_queries(queries["breakfast"], destination, limit=12),
+        "lunch": _search_places_for_queries(queries["lunch"], destination, limit=12),
+        "dinner": _search_places_for_queries(queries["dinner"], destination, limit=12),
+        "budget": _search_places_for_queries(queries["budget"], destination, limit=12),
+        "best": _search_places_for_queries(queries["best"], destination, limit=12),
     }
 
 
@@ -460,41 +596,97 @@ def _dedupe_places(places: Sequence[Place]) -> List[Place]:
     return output
 
 
-def _pick_restaurant(
+def _match_tokens(*values: str) -> set[str]:
+    tokens: set[str] = set()
+    for value in values:
+        for token in re.findall(r"[A-Za-z]+", value.lower()):
+            if len(token) <= 2:
+                continue
+            if token in MATCH_STOPWORDS:
+                continue
+            tokens.add(token)
+    return tokens
+
+
+def _cluster_overlap_score(place: Place, cluster: Sequence[Place]) -> int:
+    if not cluster:
+        return 0
+    cluster_tokens: set[str] = set()
+    for item in cluster[:3]:
+        cluster_tokens.update(_match_tokens(item.name, item.address))
+    if not cluster_tokens:
+        return 0
+    return len(_match_tokens(place.name, place.address) & cluster_tokens)
+
+
+def _cluster_distance(place: Place, cluster: Sequence[Place]) -> float:
+    if not cluster:
+        return 9999.0
+    distances = [_haversine_km(place, item) for item in cluster]
+    return min(distances) if distances else 9999.0
+
+
+def _rank_meal_candidates(pool: Sequence[Place], cluster: Sequence[Place]) -> List[Place]:
+    return sorted(
+        _dedupe_places(pool),
+        key=lambda item: (
+            -_cluster_overlap_score(item, cluster),
+            _cluster_distance(item, cluster),
+            item.rating is None,
+            -(item.rating or 0),
+            -(item.review_count or 0),
+            item.name,
+        ),
+    )
+
+
+def _is_concrete_place(place: Optional[Place]) -> bool:
+    if place is None:
+        return False
+    name = place.name.strip()
+    if not name:
+        return False
+    return _normalize_key(name) != "unknown place"
+
+
+def _pick_meal_place(
     restaurants: Dict[str, List[Place]],
+    cluster: Sequence[Place],
     budget_style: str,
     slot: str,
     used_names: Optional[set[str]] = None,
 ) -> Optional[Place]:
     breakfast_pool = restaurants.get("breakfast") or []
+    lunch_pool = restaurants.get("lunch") or []
+    dinner_pool = restaurants.get("dinner") or []
     budget_pool = restaurants.get("budget") or []
     best_pool = restaurants.get("best") or []
 
     if slot == "breakfast":
-        pool = _dedupe_places(list(breakfast_pool) + list(budget_pool[:3]) + list(best_pool[:2]))
+        pool = _rank_meal_candidates(list(breakfast_pool) + list(budget_pool[:3]) + list(best_pool[:2]), cluster)
     elif slot == "dinner":
         if budget_style == "budget":
-            pool = _dedupe_places(list(budget_pool) + list(best_pool[:3]))
+            pool = _rank_meal_candidates(list(dinner_pool) + list(budget_pool) + list(best_pool[:3]), cluster)
         elif budget_style == "premium":
-            pool = _dedupe_places(list(best_pool) + list(budget_pool[:3]))
+            pool = _rank_meal_candidates(list(dinner_pool) + list(best_pool) + list(budget_pool[:3]), cluster)
         else:
-            pool = _dedupe_places(list(best_pool[:5]) + list(budget_pool[:4]))
+            pool = _rank_meal_candidates(list(dinner_pool) + list(best_pool[:5]) + list(budget_pool[:4]), cluster)
     else:
         if budget_style == "budget":
-            pool = _dedupe_places(list(budget_pool) + list(best_pool[:3]))
+            pool = _rank_meal_candidates(list(lunch_pool) + list(budget_pool) + list(best_pool[:3]), cluster)
         elif budget_style == "premium":
-            pool = _dedupe_places(list(best_pool[:4]) + list(budget_pool[:4]))
+            pool = _rank_meal_candidates(list(lunch_pool) + list(best_pool[:4]) + list(budget_pool[:4]), cluster)
         else:
-            pool = _dedupe_places(list(budget_pool[:4]) + list(best_pool[:4]))
+            pool = _rank_meal_candidates(list(lunch_pool) + list(budget_pool[:4]) + list(best_pool[:4]), cluster)
 
     if not pool:
         return None
 
     used_names = used_names or set()
     for place in pool:
-        if place.name.lower() not in used_names:
+        if _is_concrete_place(place) and place.name.lower() not in used_names:
             return place
-    return pool[0]
+    return next((place for place in pool if _is_concrete_place(place)), None)
 
 
 def _place_label(place: Place) -> str:
@@ -522,6 +714,29 @@ def _place_payload(place: Optional[Place]) -> Optional[Dict[str, object]]:
         "data_id": place.data_id or None,
         "data_cid": place.data_cid or None,
     }
+
+
+def _validate_concrete_meals(days: Sequence[Dict[str, object]]) -> None:
+    missing: List[str] = []
+    for day in days:
+        title = str(day.get("title") or "Day")
+        for slot in ("breakfast", "lunch", "dinner"):
+            place = day.get(f"{slot}_place")
+            place_name = ""
+            if isinstance(place, dict):
+                place_name = str(place.get("name") or "").strip()
+            text = str(day.get(slot) or "").strip()
+            lowered = text.lower()
+            if not place_name or _normalize_key(place_name) == "unknown place":
+                missing.append(f"{title} {slot}")
+                continue
+            if not text:
+                missing.append(f"{title} {slot}")
+                continue
+            if any(fragment in lowered for fragment in GENERIC_MEAL_TEXT_FRAGMENTS):
+                missing.append(f"{title} {slot}")
+    if missing:
+        raise RuntimeError(f"Concrete meal planning incomplete for: {', '.join(missing[:12])}")
 
 
 def _build_day_title(index: int, places: Sequence[Place], destination: str) -> str:
@@ -556,7 +771,7 @@ def build_itinerary(
     trip_dates = _daterange(start, total_days) if start else [None] * total_days
 
     attractions = search_attractions(destination, interests, must_see)
-    restaurants = search_restaurants(destination, dietary_constraints, budget_style)
+    restaurants = search_restaurants(destination, dietary_constraints, budget_style, interests)
     events = search_events(destination)
 
     weather_summary: Dict[str, Dict[str, object]] = {}
@@ -575,13 +790,13 @@ def build_itinerary(
         daytime_places = cluster[:2]
         evening_place = cluster[2] if len(cluster) > 2 else None
         used_meal_names: set[str] = set()
-        breakfast = _pick_restaurant(restaurants, budget_style, slot="breakfast", used_names=used_meal_names)
+        breakfast = _pick_meal_place(restaurants, cluster, budget_style, slot="breakfast", used_names=used_meal_names)
         if breakfast:
             used_meal_names.add(breakfast.name.lower())
-        lunch = _pick_restaurant(restaurants, budget_style, slot="lunch", used_names=used_meal_names)
+        lunch = _pick_meal_place(restaurants, cluster, budget_style, slot="lunch", used_names=used_meal_names)
         if lunch:
             used_meal_names.add(lunch.name.lower())
-        dinner = _pick_restaurant(restaurants, budget_style, slot="dinner", used_names=used_meal_names)
+        dinner = _pick_meal_place(restaurants, cluster, budget_style, slot="dinner", used_names=used_meal_names)
         if dinner:
             used_meal_names.add(dinner.name.lower())
         event = events[idx] if idx < len(events) else None
@@ -598,17 +813,9 @@ def build_itinerary(
             else f"Keep the morning flexible for a neighborhood walk in {destination}."
         )
 
-        breakfast_line = (
-            f"Breakfast at {_place_label(breakfast)}."
-            if breakfast
-            else f"Breakfast near your base in {destination}."
-        )
+        breakfast_line = f"Breakfast at {_place_label(breakfast)}." if breakfast else ""
 
-        lunch_line = (
-            f"Lunch at {_place_label(lunch)}."
-            if lunch
-            else f"Lunch in a well-rated local area near {destination}."
-        )
+        lunch_line = f"Lunch at {_place_label(lunch)}." if lunch else ""
 
         afternoon_target = daytime_places[1] if len(daytime_places) > 1 else evening_place
         afternoon = (
@@ -631,11 +838,7 @@ def build_itinerary(
         else:
             evening = f"Keep the evening light with a local dinner and short stroll in {destination}."
 
-        dinner_line = (
-            f"Dinner at {_place_label(dinner)}."
-            if dinner
-            else f"Dinner near your base in {destination}."
-        )
+        dinner_line = f"Dinner at {_place_label(dinner)}." if dinner else ""
 
         notes = [
             _weather_note(date_value, weather_summary),
@@ -664,6 +867,8 @@ def build_itinerary(
             }
         )
 
+    _validate_concrete_meals(days_output)
+
     date_label = "flexible dates"
     if start_date and end_date:
         date_label = f"{start_date} to {end_date}"
@@ -685,6 +890,9 @@ def build_itinerary(
 
 def format_itinerary(plan: Dict[str, object]) -> str:
     header = str(plan.get("header") or "Itinerary")
+    days = plan.get("days")
+    if isinstance(days, list):
+        _validate_concrete_meals(days)
     lines = [header]
     for day in plan.get("days", []):
         if not isinstance(day, dict):
