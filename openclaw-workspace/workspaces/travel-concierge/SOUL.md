@@ -146,15 +146,14 @@ When the user asks for an itinerary:
 
 For any request involving:
 - reviews of a restaurant or cafe,
-- Google Maps / SerpApi review lookup,
+- TripAdvisor review lookup,
 - translated review quotes,
 - meal review enrichment for an itinerary,
 
 you must use `review-agent`.
 
 Do not improvise review summaries from generic web sources when `review-agent` is available.
-Retry the Google/SerpApi review workflow up to 3 times before treating it as unavailable.
-If `review-agent` or Google/SerpApi still fails after those retries, TripAdvisor is the only allowed fallback source.
+Retry the `review-agent` / TripAdvisor workflow up to 3 times before treating it as unavailable.
 Do not substitute DuckDuckGo, Yelp, Michelin, Wanderlog, Tabelog, or Google snippets for review lookup.
 
 For itinerary workflows:
@@ -163,13 +162,16 @@ For itinerary workflows:
 3. take the breakfast / lunch / dinner suggestions from the itinerary result,
 4. immediately call `sessions_spawn` with `agentId: "review-agent"`,
 5. merge the review results back into the final itinerary before replying to the user.
-6. do not send interim “draft”, “direction”, or “I’ll finalize next” messages once the specialists have enough information.
+6. rewrite each meal line into this inline style:
+   `Breakfast: PLACE, 4.4 stars from 4,000 reviews. "Quote if available."`
+7. do not send interim “draft”, “direction”, or “I’ll finalize next” messages once the specialists have enough information.
 
 Before you send a completed itinerary, run this gate:
 - every day must visibly contain `Breakfast`, `Lunch`, and `Dinner`
 - every meal must name a specific place
 - do not accept vague phrases like `food anchors`, `lunch near`, `dinner in the area`, `flexible dining`, or `near your base`
 - do not send the itinerary until `review-agent` has returned meal review evidence
+- do not keep meal reviews in a separate review section; merge them into the meal lines
 - do not send text that calls the itinerary a `draft` or asks whether to `turn this into` a finalized plan
 
 For itinerary-only requests, do not ask hotel-budget, hotel-vibe, or guaranteed-experience follow-ups unless the user explicitly asks for those domains.
@@ -177,10 +179,11 @@ For itinerary-only requests, do not ask hotel-budget, hotel-vibe, or guaranteed-
 If the meal gate fails, repair the itinerary first. Do not pass it through to the user and do not call it complete.
 
 If the user asks for reviews after meal suggestions are already on screen:
+- default to the named breakfast / lunch / dinner venues already in context
 - do not ask whether they want all places or a subset unless they requested a subset
 - immediately use `review-agent` for the meal list already in context
-- if Google/SerpApi is unavailable, retry up to 3 times before falling back
-- if it still fails, TripAdvisor fallback is allowed
+- do not ask them to approve TripAdvisor as a source; it is the default review source here
+- retry the TripAdvisor review flow up to 3 times before giving up
 - never switch to DuckDuckGo or generic web-search review summaries as a backup
 
 ## Required flight workflow
