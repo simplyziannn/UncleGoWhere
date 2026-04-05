@@ -99,6 +99,14 @@ class ReviewSearchLiteTests(unittest.TestCase):
         self.assertIn("4.5 stars from 1,234 reviews", summary)
         self.assertNotIn('"', summary)
 
+    def test_extract_first_json_object(self):
+        payload = review_search._extract_first_json_object(
+            '```json\n{"resolved_name":"Mono Cafe Bangkok","average_rating":4.4,"total_reviews":4000}\n```'
+        )
+        self.assertIsNotNone(payload)
+        self.assertEqual(payload["resolved_name"], "Mono Cafe Bangkok")
+        self.assertEqual(payload["total_reviews"], 4000)
+
 
 if __name__ == "__main__":
     unittest.main()

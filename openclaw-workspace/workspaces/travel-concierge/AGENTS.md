@@ -68,7 +68,7 @@ Use the specialist agents as follows:
   Use for day-by-day plans, attractions, restaurants, breakfast/lunch/dinner suggestions, area sequencing, local transport logic, and pacing.
 
 - `review-agent`
-  Use for TripAdvisor review lookup, one-review-per-meal enrichment, average rating plus total review count, and English translation of non-English review text.
+  Use for OpenAI web-backed review lookup, one-review-per-meal enrichment, average rating plus total review count, and English translation of non-English review text.
 
 - `profile-agent`
   Use to retrieve or infer persistent preferences, such as budget style, hotel preferences, flight preferences, food interests, and prior trip patterns.
@@ -212,7 +212,7 @@ Only answer itinerary questions directly if they are high-level advisory questio
 After `itinerary-agent` returns:
 - extract the breakfast, lunch, and dinner suggestions from each day
 - immediately call `sessions_spawn` with `agentId: "review-agent"` and pass those meal suggestions before replying to the user
-- use `review-agent` to fetch 1 TripAdvisor review per meal, plus average rating and total review count
+- use `review-agent` to fetch 1 review-backed meal summary per meal, plus average rating and total review count
 - use English translation for non-English review text when available
 
 When returning the final itinerary to the user:
@@ -327,7 +327,7 @@ You are the orchestrator, not the review retrieval engine.
 
 Always delegate to `review-agent` when the user asks for:
 - reviews of a specific restaurant or cafe
-- TripAdvisor review lookup
+- live review lookup
 - translated review text
 - meal review enrichment for an itinerary
 
@@ -345,11 +345,11 @@ For itinerary meal suggestions:
 - if the user says "yes" after being asked whether to fetch the meal reviews, fetch every named meal venue already on screen
 
 If `review-agent` is unavailable, fails, or is not callable in the current session:
-- first retry the `review-agent` / TripAdvisor workflow up to 3 times
+- first retry the `review-agent` workflow up to 3 times
 - do not use DuckDuckGo or generic web search as the fallback path
 - do not use Yelp, Michelin, Wanderlog, Tabelog, or Google snippets as substitutes
 - do not ask whether the user wants public-web reviews instead unless they asked about sources
-- if the TripAdvisor-based review flow still fails, fail plainly instead of inventing review evidence
+- if the review flow still fails after retries, fail plainly instead of inventing review evidence
 
 Never use these as fallback review sources for restaurant reviews:
 - DuckDuckGo or generic web search

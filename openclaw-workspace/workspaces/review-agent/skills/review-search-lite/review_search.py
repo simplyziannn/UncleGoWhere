@@ -157,6 +157,59 @@ def _request_text(url: str, params: Optional[Dict[str, str]] = None) -> str:
     raise RuntimeError("TripAdvisor request failed without a specific error")
 
 
+def _extract_first_json_object(text: str) -> Optional[Dict[str, object]]:
+    candidate = (text or "").strip()
+    if not candidate:
+        return None
+    fenced_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", candidate, flags=re.DOTALL)
+    if fenced_match:
+        candidate = fenced_match.group(1)
+    start = candidate.find("{")
+    end = candidate.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return None
+    try:
+        parsed = json.loads(candidate[start : end + 1])
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
+def _openai_web_review_lookup(destination: str, place_name: str) -> Optional[Dict[str, object]]:
+    api_key = _get_env("OPENAI_API_KEY")
+    if not api_key:
+        return None
+
+    model = _get_env("OPENAI_REVIEW_MODEL") or _get_env("OPENAI_MODEL") or "gpt-5-nano"
+    prompt = (
+        "Find the current public review snapshot for this venue and return only JSON. "
+        "Prefer TripAdvisor. If TripAdvisor is unavailable, use the most credible current public source you can find. "
+        "Return exactly these fields: "
+        "resolved_name, address, average_rating, total_reviews, review_quote, translated_review_quote_en, "
+        "review_author, review_date, source_name, source_url. "
+        "If a field is unavailable, return null. "
+        f"Venue: {place_name}. Destination: {destination}."
+    )
+
+    response = requests.post(
+        OPENAI_RESPONSES_URL,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "input": prompt,
+            "tools": [{"type": "web_search"}],
+        },
+        timeout=45,
+    )
+    response.raise_for_status()
+    data = response.json()
+    parsed = _extract_first_json_object(str(data.get("output_text") or ""))
+    return parsed
+
+
 def _place_payload(place: Optional[Place]) -> Optional[Dict[str, object]]:
     if place is None:
         return None
@@ -550,9 +603,56 @@ def search_recent_reviews(
     limit: int = 1,
     translate_to_english: bool = True,
 ) -> Dict[str, object]:
+    openai_error: Optional[str] = None
+    try:
+        openai_result = _openai_web_review_lookup(destination, place_name)
+    except Exception as exc:
+        openai_result = None
+        openai_error = f"OpenAI web review lookup failed: {exc}"
+
+    if isinstance(openai_result, dict):
+        place = Place(
+            name=str(openai_result.get("resolved_name") or place_name),
+            address=str(openai_result.get("address") or ""),
+            rating=_safe_float(openai_result.get("average_rating")),
+            review_count=_safe_int(openai_result.get("total_reviews")),
+            source=str(openai_result.get("source_name") or "OpenAI web search"),
+            place_url=str(openai_result.get("source_url") or _tripadvisor_search_link(place_name, destination)),
+        )
+        review_quote = _normalize_whitespace(str(openai_result.get("review_quote") or ""))
+        translated_quote = _normalize_whitespace(
+            str(openai_result.get("translated_review_quote_en") or "")
+        )
+        selected_reviews: List[Review] = []
+        if review_quote:
+            selected_reviews.append(
+                Review(
+                    author=str(openai_result.get("review_author") or "Anonymous"),
+                    published=str(openai_result.get("review_date") or ""),
+                    content=review_quote,
+                    translated_content_en=translated_quote,
+                    source=place.source,
+                )
+            )
+
+        payload: Dict[str, object] = {
+            "restaurant": _place_payload(place),
+            "reviews": [_review_payload(review) for review in selected_reviews[:limit]],
+            "used_fallback_summary": False,
+            "review_source": place.source,
+        }
+        if not selected_reviews:
+            fallback = _fallback_review_summary(place)
+            if fallback is not None:
+                payload["fallback_summary"] = fallback
+                payload["used_fallback_summary"] = True
+            else:
+                payload["review_error"] = "OpenAI web review lookup returned no usable review quote or summary."
+        return payload
+
     page_url = _pick_tripadvisor_page_url(destination, place_name)
     if not page_url:
-        return {
+        payload = {
             "restaurant": {
                 "name": place_name,
                 "address": "",
@@ -564,11 +664,14 @@ def search_recent_reviews(
             "review_source": "TripAdvisor",
             "review_error": "TripAdvisor review lookup failed to resolve a venue page.",
         }
+        if openai_error:
+            payload["review_error"] = f"{openai_error} | {payload['review_error']}"
+        return payload
 
     try:
         page_html = _request_text(page_url)
     except Exception as exc:
-        return {
+        payload = {
             "restaurant": {
                 "name": place_name,
                 "address": "",
@@ -580,6 +683,9 @@ def search_recent_reviews(
             "review_source": "TripAdvisor",
             "review_error": f"TripAdvisor page fetch failed: {exc}",
         }
+        if openai_error:
+            payload["review_error"] = f"{openai_error} | {payload['review_error']}"
+        return payload
 
     jsonld_objects = _extract_jsonld_objects(page_html)
     place = _parse_tripadvisor_place_from_jsonld(jsonld_objects, page_url, place_name)
@@ -609,6 +715,8 @@ def search_recent_reviews(
             payload["used_fallback_summary"] = True
         else:
             payload["review_error"] = "TripAdvisor page found but no structured review summary was available."
+    if openai_error and not payload.get("reviews"):
+        payload["review_error"] = f"{openai_error} | {payload.get('review_error', '')}".strip(" |")
     return payload
 
 

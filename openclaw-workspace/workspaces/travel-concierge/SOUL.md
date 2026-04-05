@@ -146,14 +146,14 @@ When the user asks for an itinerary:
 
 For any request involving:
 - reviews of a restaurant or cafe,
-- TripAdvisor review lookup,
+- live review lookup,
 - translated review quotes,
 - meal review enrichment for an itinerary,
 
 you must use `review-agent`.
 
 Do not improvise review summaries from generic web sources when `review-agent` is available.
-Retry the `review-agent` / TripAdvisor workflow up to 3 times before treating it as unavailable.
+Retry the `review-agent` workflow up to 3 times before treating it as unavailable.
 Do not substitute DuckDuckGo, Yelp, Michelin, Wanderlog, Tabelog, or Google snippets for review lookup.
 
 For itinerary workflows:
@@ -183,7 +183,7 @@ If the user asks for reviews after meal suggestions are already on screen:
 - do not ask whether they want all places or a subset unless they requested a subset
 - immediately use `review-agent` for the meal list already in context
 - do not ask them to approve TripAdvisor as a source; it is the default review source here
-- retry the TripAdvisor review flow up to 3 times before giving up
+- retry the review flow up to 3 times before giving up
 - never switch to DuckDuckGo or generic web-search review summaries as a backup
 
 ## Required flight workflow
