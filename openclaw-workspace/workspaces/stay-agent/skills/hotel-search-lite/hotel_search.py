@@ -1,5 +1,6 @@
 import os
 import requests
+import argparse
 from typing import Any, Dict, List, Optional
 
 SERPAPI_URL = "https://serpapi.com/search.json"
@@ -158,7 +159,7 @@ class SerpApiHotelSearch:
             **price_block,
         }
 
-    def shortlist(self, data: Dict[str, Any], limit: int = 10) -> List[Dict[str, Any]]:
+    def shortlist(self, data, limit=10):
         properties = data.get("properties", [])
         normalized = [self.normalize_property(p) for p in properties]
 
@@ -176,24 +177,40 @@ class SerpApiHotelSearch:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Hotel search via SerpApi Google Hotels")
+    parser.add_argument("--destination", required=True, help="Destination city or query (e.g. Tokyo, Bangkok)")
+    parser.add_argument("--check_in", required=True, help="Check-in date (YYYY-MM-DD)")
+    parser.add_argument("--check_out", required=True, help="Check-out date (YYYY-MM-DD)")
+    parser.add_argument("--adults", type=int, default=1, help="Number of adults (default: 1)")
+    parser.add_argument("--children", type=int, default=0, help="Number of children (default: 0)")
+    parser.add_argument("--currency", default="USD", help="Currency code (default: USD)")
+    parser.add_argument("--gl", default="us", help="Country code for localization (default: us)")
+    parser.add_argument("--limit", type=int, default=5, help="Number of results to return (default: 5)")
+    args = parser.parse_args()
+
     client = SerpApiHotelSearch()
     results = client.search_hotels(
-        destination="Bali Resorts",
-        check_in_date="2026-04-08",
-        check_out_date="2026-04-09",
-        adults=2,
-        children=0,
-        currency="USD",
-        gl="us",
-        hl="en",
+        destination=args.destination,
+        check_in_date=args.check_in,
+        check_out_date=args.check_out,
+        adults=args.adults,
+        children=args.children,
+        currency=args.currency,
+        gl=args.gl,
     )
-    top = client.shortlist(results, limit=5)
-    for hotel in top:
-        print({
-            "name": hotel["name"],
-            "rating": hotel["overall_rating"],
-            "reviews": hotel["reviews"],
-            "total_price": hotel["total_price"],
-            "nightly_price": hotel["nightly_price"],
-            "property_token": hotel["property_token"],
-        })
+    top = client.shortlist(results, limit=args.limit)
+    if not top:
+        print("No hotels found for the given search parameters.")
+    else:
+        for hotel in top:
+            print({
+                "name": hotel["name"],
+                "rating": hotel["overall_rating"],
+                "reviews": hotel["reviews"],
+                "total_price": hotel["total_price"],
+                "nightly_price": hotel["nightly_price"],
+                "property_token": hotel["property_token"],
+                "address": hotel.get("address"),
+                "free_cancellation": hotel.get("free_cancellation"),
+            })
+

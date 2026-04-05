@@ -1,0 +1,16 @@
+{
+  "name": "hotel-search-lite",
+  "description": "Live hotel search and pricing via SerpApi Google Hotels for a destination and exact stay dates.",
+  "inputs": {
+    "destination": {"type": "string", "description": "Destination city or query (e.g. Tokyo, Bangkok)"},
+    "check_in_date": {"type": "string", "format": "YYYY-MM-DD"},
+    "check_out_date": {"type": "string", "format": "YYYY-MM-DD"},
+    "adults": {"type": "integer", "default": 1},
+    "children": {"type": "integer", "default": 0},
+    "currency": {"type": "string", "default": "USD"}
+  },
+  "outputs": {
+    "header": "Stays for {DESTINATION} ({CHECK_IN} to {CHECK_OUT})",
+    "properties": [{"name": "string", "nightly_price": "string", "total_price": "string", "rating": "float", "property_token": "string"}]
+  }
+}

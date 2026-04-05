@@ -410,7 +410,7 @@ Keep it concise.
 
 ## Hotel Search
 
-Implemented in `skills/hotel-search/`.
+Implemented in `skills/hotel-search-lite/`.
 
 - Source: SerpApi Google Hotels only.
 - Environment variable: `SERPAPI_API_KEY`.
@@ -422,8 +422,8 @@ Implemented in `skills/hotel-search/`.
 
 ## Files
 
-- `skills/hotel-search/SKILL.md`: hotel-search workflow and rules.
-- `skills/hotel-search/hotel_search.py`: Python implementation for search, normalization, details lookup, and shortlist ranking.
+- `skills/hotel-search-lite/SKILL.md`: hotel-search workflow and rules.
+- `skills/hotel-search-lite/hotel_search.py`: Python implementation for search, normalization, details lookup, and shortlist ranking.
 
 ## Usage Notes
 

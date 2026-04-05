@@ -46,22 +46,37 @@ If essentials are missing, ask only for the most important ones.
 
 ---
 
+
 ## Mandatory execution rule
 
-If destination, check-in date, and check-out date are present, you must not stop at generic area advice, placeholder options, or optional follow-up questions.
+If destination, check-in date, and check-out date are present, you must not stop at
+generic area advice or placeholder output.
 
-Before finishing, you must do exactly one of these:
-1. Run the approved hotel recommendation + Xotelo pricing workflow and return actual hotel options.
-2. Return an explicit failure such as:
-   - live hotel pricing unavailable
-   - xotelo endpoint unresolved
-   - hotel identity mapping failed
+Before finishing, run the local hotel search tool:
 
-You must not end with:
+`python3 /home/ubuntu/tripclaw-monorepo/openclaw-workspace/workspaces/stay-agent/skills/hotel-search-lite/hotel_search.py --destination "Tokyo" --check_in 2026-12-16 --check_out 2026-12-20 --adults 1`
+
+Required arguments:
+- `--destination`
+- `--check_in`
+- `--check_out`
+
+Optional arguments:
+- `--adults` (default 1)
+- `--children` (default 0)
+- `--currency` (default USD)
+
+You must do exactly one of these before finishing:
+1. Run the above local Python tool and return actual hotel options.
+2. Return an explicit failure: `live hotel search unavailable — tool execution failed`.
+
+Never end with:
 - "pricing data isn't loaded yet"
 - "share your budget and I'll fetch live rates"
 - "I can refine after preferences"
-when the minimum searchable inputs are already present.
+when destination, check-in, and check-out are already present.
+
+
 
 ## Ranking rules
 
