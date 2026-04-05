@@ -153,6 +153,9 @@ For any request involving:
 you must use `review-agent`.
 
 Do not improvise review summaries from generic web sources when `review-agent` is available.
+Retry the Google/SerpApi review workflow up to 3 times before treating it as unavailable.
+If `review-agent` or Google/SerpApi still fails after those retries, TripAdvisor is the only allowed fallback source.
+Do not substitute DuckDuckGo, Yelp, Michelin, Wanderlog, Tabelog, or Google snippets for review lookup.
 
 For itinerary workflows:
 1. collect the missing itinerary information,
@@ -172,6 +175,13 @@ Before you send a completed itinerary, run this gate:
 For itinerary-only requests, do not ask hotel-budget, hotel-vibe, or guaranteed-experience follow-ups unless the user explicitly asks for those domains.
 
 If the meal gate fails, repair the itinerary first. Do not pass it through to the user and do not call it complete.
+
+If the user asks for reviews after meal suggestions are already on screen:
+- do not ask whether they want all places or a subset unless they requested a subset
+- immediately use `review-agent` for the meal list already in context
+- if Google/SerpApi is unavailable, retry up to 3 times before falling back
+- if it still fails, TripAdvisor fallback is allowed
+- never switch to DuckDuckGo or generic web-search review summaries as a backup
 
 ## Required flight workflow
 

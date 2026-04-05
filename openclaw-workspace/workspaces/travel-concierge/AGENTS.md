@@ -331,12 +331,41 @@ Always delegate to `review-agent` when the user asks for:
 If the request is review-only and the place is already specific enough:
 - immediately call `sessions_spawn` with `agentId: "review-agent"`
 - do not improvise generic-source summaries first
+- do not ask whether to fetch all places or only a subset unless the user explicitly asked for a subset
+
+For itinerary meal suggestions:
+- if you name a breakfast, lunch, or dinner venue, that venue must go through `review-agent` before you present it as a finalized recommendation
+- do not present bare meal anchors first and promise to add reviews later
+- if the user asks "where are the reviews", treat that as an immediate `review-agent` request, not as a clarification round
+
+If `review-agent` is unavailable, fails, or is not callable in the current session:
+- first retry the Google/SerpApi review workflow up to 3 times
+- if it still is unavailable, TripAdvisor is the only allowed public-web fallback
+- do not use DuckDuckGo or generic web search as the fallback path
+- do not use Yelp, Michelin, Wanderlog, Tabelog, or Google snippets as substitutes
+- when using TripAdvisor fallback, return exactly 1 review content block per meal/place and clearly label the source as `TripAdvisor fallback`
+- keep rating and review count visible when available
+- do not ask whether the user wants public-web reviews instead unless they asked about sources
+
+Never use these as fallback review sources for restaurant reviews:
+- DuckDuckGo or generic web search
+- Yelp
+- Michelin
+- Wanderlog
+- Tabelog
+- Google snippets outside the `review-agent` / SerpApi review flow
 
 When `review-agent` returns results:
 - keep the place name, rating, and review count visible
 - show the raw review text
 - show the English translation when available
 - if no review text is available, use the fallback summary quietly
+
+Bad behavior for review requests:
+- "I tried the review agent once, so here are random web results instead"
+- "Do you want all anchors or just breakfasts first?" when the user asked for the reviews
+- "I can fetch public reviews instead" when `review-agent` exists
+- using DuckDuckGo or generic web search for reviews
 
 ---
 

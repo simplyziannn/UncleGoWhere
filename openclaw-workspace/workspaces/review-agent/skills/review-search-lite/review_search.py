@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
+import time
 from typing import Dict, List, Optional, Sequence, Tuple
 from urllib.parse import quote_plus
 
@@ -19,6 +20,8 @@ SCHEMA = json.loads(
 
 SERPAPI_URL = "https://serpapi.com/search"
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
+SERPAPI_MAX_ATTEMPTS = 3
+SERPAPI_RETRY_DELAY_SECONDS = 1.0
 GENERIC_MEAL_NAME_FRAGMENTS = (
     "food anchors",
     "rough dining ideas",
@@ -91,9 +94,20 @@ def _serpapi_search(params: Dict[str, object]) -> Dict[str, object]:
     enriched["api_key"] = api_key
     enriched.setdefault("hl", "en")
 
-    response = requests.get(SERPAPI_URL, params=enriched, timeout=30)
-    response.raise_for_status()
-    return response.json()
+    last_error: Optional[Exception] = None
+    for attempt in range(1, SERPAPI_MAX_ATTEMPTS + 1):
+        try:
+            response = requests.get(SERPAPI_URL, params=enriched, timeout=30)
+            response.raise_for_status()
+            return response.json()
+        except (requests.RequestException, ValueError) as exc:
+            last_error = exc
+            if attempt >= SERPAPI_MAX_ATTEMPTS:
+                break
+            time.sleep(SERPAPI_RETRY_DELAY_SECONDS)
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("SerpApi search failed without a specific error")
 
 
 def _extract_coordinates(item: Dict[str, object]) -> Tuple[Optional[float], Optional[float]]:

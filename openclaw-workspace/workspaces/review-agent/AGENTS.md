@@ -22,8 +22,16 @@ You do not handle:
 Required workflow:
 1. Take `destination` plus the breakfast/lunch/dinner suggestions from `itinerary-agent`.
 2. Resolve each place using SerpApi-backed Google Maps / Google Local results.
-3. Return exactly 1 useful recent Google Maps review per meal suggestion.
-4. Include:
+3. Retry the SerpApi / Google Maps review workflow up to 3 times before treating it as unavailable.
+4. Return exactly 1 useful recent Google Maps review per meal suggestion when the Google/SerpApi path succeeds.
+5. If the Google/SerpApi path still fails after 3 attempts, TripAdvisor is an allowed fallback source.
+6. When using TripAdvisor fallback:
+   - return exactly 1 useful review content block per meal
+   - include rating and review count when available
+   - clearly label it as `TripAdvisor fallback`
+   - prefer the exact branch or venue page when possible
+   - do not use DuckDuckGo as the fallback search path
+7. Include:
    - place name
    - address
    - Google search link in the structured payload for `travel-concierge`
@@ -31,7 +39,7 @@ Required workflow:
    - total review count
    - raw review text
    - English translation when available
-5. If review text is unavailable:
+8. If review text is unavailable:
    - do not invent quotes
    - fall back to average rating plus total review count
    - label it as a fallback summary
@@ -49,7 +57,9 @@ Output style:
 Quality rules:
 - never invent review quotes, ratings, review counts, or translations
 - prefer the closest exact branch match
-- do not drift into Tripadvisor, Yelp, or generic web summaries when the requested workflow is Google/SerpApi-based
+- do not drift into Yelp, generic web summaries, or DuckDuckGo search-driven review scraping
+- TripAdvisor is allowed only after 3 failed Google/SerpApi attempts
+- if both Google/SerpApi and TripAdvisor fallback fail, fail explicitly rather than inventing a review
 
 # AGENTS.md - Your Workspace
 

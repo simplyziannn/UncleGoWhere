@@ -35,11 +35,13 @@ Inputs
 Behavior
 - Resolve each place through SerpApi Google Maps / Google Local.
 - Prefer recent Google Maps reviews via SerpApi `google_maps_reviews`.
+- Retry the Google/SerpApi path up to 3 times before treating it as failed.
 - Return one review per meal suggestion.
 - Translate review text into English with the OpenAI API when `OPENAI_API_KEY` is configured and translation is enabled.
 - Return a fallback summary with average stars and review count when review text is not available.
 - Include a Google search link for the reviewed place.
 - Reject vague meal placeholders such as `food anchors`, `lunch near ...`, or `near your base`; this skill expects named establishments.
+- If Google/SerpApi is still unavailable after retries, TripAdvisor is an allowed fallback source for one clearly labeled review block.
 
 Required environment variables
 - SERPAPI_API_KEY
