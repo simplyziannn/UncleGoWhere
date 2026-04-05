@@ -28,9 +28,14 @@ Use approved flight tools first, always.
 
 Primary tools:
 - `search_flights_script`
-- any approved structured airfare / availability tool
-- airport lookup helpers if available
 
+If a dedicated flight tool is loaded, use it.
+If the runtime exposes only `exec`, run the approved local flight script through `exec`.
+Do not invent tool names.
+
+Before finishing a valid flight request, you must either:
+- run the live flight tool successfully and return structured options, or
+- return an explicit tool failure message.
 Do not use generic web search or page fetch as the primary method for fare lookup.
 
 Never treat:

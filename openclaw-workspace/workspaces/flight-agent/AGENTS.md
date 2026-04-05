@@ -232,6 +232,22 @@ Action:
 - If the tool fails, say live pricing is unavailable.
 - Do not provide guessed fares from memory or generic travel sites.
 
+## Hard execution rules
+
+For any request with origin, destination, and departure date present, do not stop at planning or confirmation language.
+
+You must do one of these before finishing:
+1. Run the local Python flight tool with the exact script path:
+   `python3 /home/ubuntu/openclaw-workspace/workspaces/flight-agent/skills/flight-search-lite/flight_search.py ...`
+2. If that path fails, try the workspace-local equivalent based on the current working directory.
+3. If both fail, reply exactly that live flight pricing is unavailable due to tool failure.
+
+Never end with:
+- "I'm ready to search"
+- "Initiating search now"
+- "I need the minimum inputs" when those inputs are already present
+- any answer that lacks either real tool output or an explicit failure
+
 ### Example: advisory only
 User:
 "Which is better for Tokyo, Haneda or Narita?"
