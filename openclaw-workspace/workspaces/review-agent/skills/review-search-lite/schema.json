@@ -1,0 +1,48 @@
+{
+  "name": "review-search-lite",
+  "description": "Google Maps review lookup for meal suggestions with optional English translation and fallback summary.",
+  "inputs": {
+    "destination": {"type": "string", "description": "Destination city or area for review disambiguation"},
+    "meals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "day": {"type": "string", "optional": true},
+          "meal_type": {"type": "string", "optional": true},
+          "place_name": {"type": "string"}
+        }
+      }
+    },
+    "translate_to_english": {"type": "boolean", "default": true, "optional": true}
+  },
+  "outputs": {
+    "destination": "string",
+    "meals": [
+      {
+        "day": "string",
+        "meal_type": "string",
+        "requested_place_name": "string",
+        "place": {
+          "name": "string",
+          "address": "string",
+          "url": "string",
+          "rating": "number",
+          "review_count": "integer"
+        },
+        "review": {
+          "author": "string",
+          "rating": "number",
+          "published": "string",
+          "content": "string",
+          "translated_content_en": "string"
+        },
+        "used_fallback_summary": "boolean",
+        "fallback_summary": {
+          "average_rating": "number",
+          "total_reviews": "integer"
+        }
+      }
+    ]
+  }
+}
