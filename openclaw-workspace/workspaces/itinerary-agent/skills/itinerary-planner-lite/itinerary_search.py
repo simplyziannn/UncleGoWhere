@@ -357,10 +357,16 @@ def search_attractions(destination: str, interests: Sequence[str], must_see: Seq
 
 def search_restaurants(destination: str, dietary_constraints: Sequence[str], budget_style: str) -> Dict[str, List[Place]]:
     diet = " ".join(dietary_constraints[:2]).strip()
+    breakfast_query = f"{diet} breakfast cafes in {destination}".strip()
     budget_query = f"{diet} budget restaurants in {destination}".strip()
     best_query = f"{diet} best restaurants in {destination}".strip()
     if budget_style == "premium":
         budget_query = f"{diet} casual restaurants in {destination}".strip()
+
+    try:
+        breakfast_results = _search_local(breakfast_query, destination, limit=8)
+    except Exception:
+        breakfast_results = []
 
     try:
         budget_results = _search_local(budget_query, destination, limit=8)
@@ -373,6 +379,7 @@ def search_restaurants(destination: str, dietary_constraints: Sequence[str], bud
         best_results = []
 
     return {
+        "breakfast": breakfast_results,
         "budget": budget_results,
         "best": best_results,
     }
@@ -549,17 +556,53 @@ def _weather_note(day: Optional[dt.date], weather_summary: Dict[str, Dict[str, o
     return ", ".join(parts)
 
 
-def _pick_restaurant(restaurants: Dict[str, List[Place]], budget_style: str, evening: bool = False) -> Optional[Place]:
-    if budget_style == "budget":
-        pool = restaurants.get("budget") or restaurants.get("best") or []
-    elif budget_style == "premium":
-        pool = restaurants.get("best") or restaurants.get("budget") or []
+def _dedupe_places(places: Sequence[Place]) -> List[Place]:
+    seen: set[str] = set()
+    output: List[Place] = []
+    for place in places:
+        key = place.name.lower().strip()
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(place)
+    return output
+
+
+def _pick_restaurant(
+    restaurants: Dict[str, List[Place]],
+    budget_style: str,
+    slot: str,
+    used_names: Optional[set[str]] = None,
+) -> Optional[Place]:
+    breakfast_pool = restaurants.get("breakfast") or []
+    budget_pool = restaurants.get("budget") or []
+    best_pool = restaurants.get("best") or []
+
+    if slot == "breakfast":
+        pool = _dedupe_places(list(breakfast_pool) + list(budget_pool[:3]) + list(best_pool[:2]))
+    elif slot == "dinner":
+        if budget_style == "budget":
+            pool = _dedupe_places(list(budget_pool) + list(best_pool[:3]))
+        elif budget_style == "premium":
+            pool = _dedupe_places(list(best_pool) + list(budget_pool[:3]))
+        else:
+            pool = _dedupe_places(list(best_pool[:5]) + list(budget_pool[:4]))
     else:
-        pool = (restaurants.get("best") or [])[:4] + (restaurants.get("budget") or [])[:4]
+        if budget_style == "budget":
+            pool = _dedupe_places(list(budget_pool) + list(best_pool[:3]))
+        elif budget_style == "premium":
+            pool = _dedupe_places(list(best_pool[:4]) + list(budget_pool[:4]))
+        else:
+            pool = _dedupe_places(list(budget_pool[:4]) + list(best_pool[:4]))
 
     if not pool:
         return None
-    return pool[-1] if evening else pool[0]
+
+    used_names = used_names or set()
+    for place in pool:
+        if place.name.lower() not in used_names:
+            return place
+    return pool[0]
 
 
 def _place_label(place: Place) -> str:
@@ -823,8 +866,6 @@ def build_itinerary(
     pace: str = "balanced",
     must_see: Optional[Sequence[str]] = None,
     dietary_constraints: Optional[Sequence[str]] = None,
-    review_place: Optional[str] = None,
-    translate_reviews_to_english: bool = False,
 ) -> Dict[str, object]:
     if not _get_env("SERPAPI_API_KEY"):
         raise RuntimeError("SERPAPI_API_KEY not configured")
@@ -857,8 +898,16 @@ def build_itinerary(
         cluster = clusters[idx] if idx < len(clusters) else []
         daytime_places = cluster[:2]
         evening_place = cluster[2] if len(cluster) > 2 else None
-        lunch = _pick_restaurant(restaurants, budget_style, evening=False)
-        dinner = _pick_restaurant(restaurants, budget_style, evening=True)
+        used_meal_names: set[str] = set()
+        breakfast = _pick_restaurant(restaurants, budget_style, slot="breakfast", used_names=used_meal_names)
+        if breakfast:
+            used_meal_names.add(breakfast.name.lower())
+        lunch = _pick_restaurant(restaurants, budget_style, slot="lunch", used_names=used_meal_names)
+        if lunch:
+            used_meal_names.add(lunch.name.lower())
+        dinner = _pick_restaurant(restaurants, budget_style, slot="dinner", used_names=used_meal_names)
+        if dinner:
+            used_meal_names.add(dinner.name.lower())
         event = events[idx] if idx < len(events) else None
         date_value = trip_dates[idx] if idx < len(trip_dates) else None
 
@@ -872,8 +921,12 @@ def build_itinerary(
             if daytime_places
             else f"Keep the morning flexible for a neighborhood walk in {destination}."
         )
-        if lunch:
-            morning += f" Pause for lunch at {_place_label(lunch)}."
+
+        breakfast_line = (
+            f"Breakfast at {_place_label(breakfast)}."
+            if breakfast
+            else f"Breakfast near your base in {destination}."
+        )
 
         lunch_line = (
             f"Lunch at {_place_label(lunch)}."
@@ -895,8 +948,10 @@ def build_itinerary(
             if event.when:
                 evening += f" ({event.when})"
             evening += "."
+        elif evening_place:
+            evening = f"Spend the evening around {_place_label(evening_place)}."
         elif dinner:
-            evening = f"Wind down with dinner at {_place_label(dinner)}."
+            evening = f"Keep the evening light with a neighborhood stroll near {dinner.name}."
         else:
             evening = f"Keep the evening light with a local dinner and short stroll in {destination}."
 
@@ -921,11 +976,13 @@ def build_itinerary(
                 "morning": morning,
                 "afternoon": afternoon,
                 "evening": evening,
+                "breakfast": breakfast_line,
                 "lunch": lunch_line,
                 "dinner": dinner_line,
                 "notes": " ".join(notes),
                 "morning_place": _place_payload(daytime_places[0] if daytime_places else None),
                 "afternoon_place": _place_payload(afternoon_target),
+                "breakfast_place": _place_payload(breakfast),
                 "lunch_place": _place_payload(lunch),
                 "dinner_place": _place_payload(dinner),
             }
@@ -939,26 +996,6 @@ def build_itinerary(
     elif days:
         date_label = f"{days} days"
 
-    review_summary: Optional[Dict[str, object]] = None
-    if review_place:
-        try:
-            review_summary = search_recent_reviews(
-                destination,
-                review_place,
-                limit=3,
-                translate_to_english=translate_reviews_to_english,
-            )
-        except Exception:
-            review_summary = {
-                "restaurant": {
-                    "name": review_place,
-                    "address": "",
-                    "url": _google_search_link(review_place, destination),
-                },
-                "reviews": [],
-                "used_fallback_summary": False,
-            }
-
     return {
         "header": f"Itinerary for {destination} ({date_label})",
         "base_template": {
@@ -967,7 +1004,6 @@ def build_itinerary(
             "why": "Keeps daily transit simple and gives easy access to food and train lines without doing a full hotel search.",
         },
         "days": days_output,
-        "review_place": review_summary,
         "meta": {
             "attractions_found": len(attractions),
             "events_found": len(events),
@@ -994,37 +1030,10 @@ def format_itinerary(plan: Dict[str, object]) -> str:
         lines.append(f"Morning: {day.get('morning', '')}")
         lines.append(f"Afternoon: {day.get('afternoon', '')}")
         lines.append(f"Evening: {day.get('evening', '')}")
+        lines.append(f"Breakfast: {day.get('breakfast', '')}")
         lines.append(f"Lunch: {day.get('lunch', '')}")
         lines.append(f"Dinner: {day.get('dinner', '')}")
         lines.append(f"Notes: {day.get('notes', '')}")
-    review_summary = plan.get("review_place")
-    if isinstance(review_summary, dict):
-        restaurant = review_summary.get("restaurant")
-        reviews = review_summary.get("reviews")
-        fallback_summary = review_summary.get("fallback_summary")
-        used_fallback_summary = bool(review_summary.get("used_fallback_summary"))
-        if isinstance(restaurant, dict):
-            lines.append("")
-            lines.append("Review lookup")
-            lines.append(f"Place: {restaurant.get('name', '')}")
-            lines.append(f"Address: {restaurant.get('address', '')}")
-            lines.append(f"Link: {restaurant.get('url', '')}")
-        if isinstance(reviews, list) and reviews:
-            lines.append("Top recent reviews")
-            for index, review in enumerate(reviews[:3], start=1):
-                if not isinstance(review, dict):
-                    continue
-                lines.append(
-                    f"{index}. {review.get('author', 'Anonymous')} - rating {review.get('rating', '')} - {review.get('published', '')}"
-                )
-                lines.append(f"Raw: {review.get('content', '') or review.get('snippet', '')}")
-                translated = str(review.get("translated_content_en") or "").strip()
-                if translated:
-                    lines.append(f"English: {translated}")
-        elif used_fallback_summary and isinstance(fallback_summary, dict):
-            lines.append("Review summary fallback")
-            lines.append(f"Average rating: {fallback_summary.get('average_rating', '')}")
-            lines.append(f"Total reviews: {fallback_summary.get('total_reviews', '')}")
     return "\n".join(lines)
 
 
@@ -1039,8 +1048,6 @@ def main(
     pace: str = "balanced",
     must_see: Optional[Sequence[str]] = None,
     dietary_constraints: Optional[Sequence[str]] = None,
-    review_place: Optional[str] = None,
-    translate_reviews_to_english: bool = False,
 ) -> str:
     plan = build_itinerary(
         destination=destination,
@@ -1053,8 +1060,6 @@ def main(
         pace=pace,
         must_see=must_see,
         dietary_constraints=dietary_constraints,
-        review_place=review_place,
-        translate_reviews_to_english=translate_reviews_to_english,
     )
     return format_itinerary(plan)
 
@@ -1073,8 +1078,6 @@ if __name__ == "__main__":
     parser.add_argument("--pace", default="balanced")
     parser.add_argument("--must-see", nargs="*", default=None)
     parser.add_argument("--dietary-constraints", nargs="*", default=None)
-    parser.add_argument("--review-place", default=None)
-    parser.add_argument("--translate-reviews-to-english", action="store_true")
 
     args = parser.parse_args()
 
@@ -1090,7 +1093,5 @@ if __name__ == "__main__":
             pace=args.pace,
             must_see=args.must_see,
             dietary_constraints=args.dietary_constraints,
-            review_place=args.review_place,
-            translate_reviews_to_english=args.translate_reviews_to_english,
         )
     )

@@ -20,8 +20,6 @@ class ItineraryRequest(BaseModel):
     pace: Optional[str] = "balanced"
     must_see: Optional[List[str]] = None
     dietary_constraints: Optional[List[str]] = None
-    review_place: Optional[str] = None
-    translate_reviews_to_english: Optional[bool] = False
 
 
 app = FastAPI(title="Itinerary Planner Lite API")
@@ -41,8 +39,6 @@ async def itinerary_plan(req: ItineraryRequest):
             pace=req.pace or "balanced",
             must_see=req.must_see or [],
             dietary_constraints=req.dietary_constraints or [],
-            review_place=req.review_place,
-            translate_reviews_to_english=bool(req.translate_reviews_to_english),
         )
     except Exception as exc:
         return {"error": str(exc)}
