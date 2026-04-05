@@ -11,7 +11,9 @@
     "interests": {"type": "array", "items": {"type": "string"}, "optional": true},
     "pace": {"type": "string", "enum": ["slow", "balanced", "fast"], "default": "balanced"},
     "must_see": {"type": "array", "items": {"type": "string"}, "optional": true},
-    "dietary_constraints": {"type": "array", "items": {"type": "string"}, "optional": true}
+    "dietary_constraints": {"type": "array", "items": {"type": "string"}, "optional": true},
+    "review_place": {"type": "string", "description": "Optional restaurant name for top recent review lookup", "optional": true},
+    "translate_reviews_to_english": {"type": "boolean", "description": "Translate returned reviews into English using the OpenAI API when OPENAI_API_KEY is configured", "optional": true}
   },
   "outputs": {
     "header": "Itinerary for {DESTINATION} ({DATES})",
@@ -21,8 +23,20 @@
         "morning": "string",
         "afternoon": "string",
         "evening": "string",
-        "notes": "string"
+        "notes": "string",
+        "morning_place": {"name": "string", "address": "string", "url": "string"},
+        "afternoon_place": {"name": "string", "address": "string", "url": "string"},
+        "lunch_place": {"name": "string", "address": "string", "url": "string"},
+        "dinner_place": {"name": "string", "address": "string", "url": "string"}
       }
-    ]
+    ],
+    "review_place": {
+      "restaurant": {"name": "string", "address": "string", "url": "string", "rating": "number", "review_count": "integer"},
+      "reviews": [
+        {"author": "string", "rating": "number", "published": "string", "content": "string", "translated_content_en": "string", "snippet": "string"}
+      ],
+      "used_fallback_summary": "boolean",
+      "fallback_summary": {"average_rating": "number", "total_reviews": "integer"}
+    }
   }
 }

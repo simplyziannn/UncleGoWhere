@@ -28,6 +28,7 @@ SCHEMA = json.loads(
 
 SERPAPI_URL = "https://serpapi.com/search"
 OPENWEATHER_FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
+OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 
 
 @dataclass
@@ -36,11 +37,17 @@ class Place:
     category: str
     address: str = ""
     rating: Optional[float] = None
+    review_count: Optional[int] = None
     price: Optional[str] = None
     description: str = ""
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     source: str = ""
+    place_id: str = ""
+    data_id: str = ""
+    data_cid: str = ""
+    reviews_link: str = ""
+    place_url: str = ""
 
 
 @dataclass
@@ -49,6 +56,15 @@ class Event:
     when: str = ""
     venue: str = ""
     description: str = ""
+
+
+@dataclass
+class Review:
+    author: str
+    rating: Optional[float] = None
+    published: str = ""
+    snippet: str = ""
+    translated_snippet_en: str = ""
 
 
 def _google_search_link(*parts: str) -> str:
@@ -75,9 +91,88 @@ def _serpapi_search(params: Dict[str, object]) -> Dict[str, object]:
     return response.json()
 
 
+def _openai_translate_to_english(text: str) -> str:
+    api_key = _get_env("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not configured")
+
+    content = text.strip()
+    if not content:
+        return ""
+
+    model = _get_env("OPENAI_TRANSLATION_MODEL") or _get_env("OPENAI_MODEL") or "gpt-5"
+    response = requests.post(
+        OPENAI_RESPONSES_URL,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "input": [
+                {
+                    "role": "developer",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": (
+                                "Translate the user's review text into clear natural English. "
+                                "Return only the English translation and nothing else."
+                            ),
+                        }
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": content,
+                        }
+                    ],
+                },
+            ],
+        },
+        timeout=45,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    output_text = str(data.get("output_text") or "").strip()
+    if output_text:
+        return output_text
+
+    text_parts: List[str] = []
+    for item in data.get("output") or []:
+        if not isinstance(item, dict):
+            continue
+        for content_item in item.get("content") or []:
+            if not isinstance(content_item, dict):
+                continue
+            if content_item.get("type") == "output_text":
+                text = str(content_item.get("text") or "").strip()
+                if text:
+                    text_parts.append(text)
+    return "\n".join(text_parts).strip()
+
+
 def _safe_float(value: object) -> Optional[float]:
     try:
         return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_int(value: object) -> Optional[int]:
+    try:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return None
+        text = str(value).replace(",", "").strip()
+        if not text:
+            return None
+        return int(float(text))
     except (TypeError, ValueError):
         return None
 
@@ -94,16 +189,24 @@ def _extract_coordinates(item: Dict[str, object]) -> Tuple[Optional[float], Opti
 
 def _parse_place(item: Dict[str, object], category: str, source: str) -> Place:
     lat, lng = _extract_coordinates(item)
+    name = str(item.get("title") or item.get("name") or "Unknown place")
+    address = str(item.get("address") or item.get("formatted_address") or "")
     return Place(
-        name=str(item.get("title") or item.get("name") or "Unknown place"),
+        name=name,
         category=category,
-        address=str(item.get("address") or item.get("formatted_address") or ""),
+        address=address,
         rating=_safe_float(item.get("rating")),
+        review_count=_safe_int(item.get("reviews")),
         price=str(item.get("price") or item.get("price_level") or "") or None,
         description=str(item.get("description") or item.get("snippet") or ""),
         latitude=lat,
         longitude=lng,
         source=source,
+        place_id=str(item.get("place_id") or ""),
+        data_id=str(item.get("data_id") or ""),
+        data_cid=str(item.get("data_cid") or ""),
+        reviews_link=str(item.get("reviews_link") or ""),
+        place_url=_google_search_link(name, address),
     )
 
 
@@ -115,6 +218,39 @@ def _parse_event(item: Dict[str, object]) -> Event:
         when=str(schedule),
         venue=str(venue),
         description=str(item.get("description") or item.get("snippet") or ""),
+    )
+
+
+def _parse_review(item: Dict[str, object]) -> Review:
+    published = (
+        item.get("iso_date")
+        or item.get("date_iso8601")
+        or item.get("iso_date_of_last_edit")
+        or item.get("published_at")
+        or item.get("published")
+        or item.get("date")
+        or item.get("date_ago")
+        or ""
+    )
+    snippet = (
+        item.get("snippet")
+        or item.get("excerpt")
+        or item.get("description")
+        or item.get("description")
+        or item.get("summary")
+        or ""
+    )
+    user = item.get("user") or {}
+    author = ""
+    if isinstance(user, dict):
+        author = str(user.get("name") or user.get("username") or "")
+    if not author:
+        author = str(item.get("author") or item.get("name") or "Anonymous")
+    return Review(
+        author=author,
+        rating=_safe_float(item.get("rating")),
+        published=str(published),
+        snippet=str(snippet),
     )
 
 
@@ -134,6 +270,70 @@ def _search_local(query: str, location: str, limit: int = 10) -> List[Place]:
         if isinstance(item, dict):
             places.append(_parse_place(item, category=query, source="google_local"))
     return places
+
+
+def _search_maps(query: str, limit: int = 10) -> List[Place]:
+    data = _serpapi_search(
+        {
+            "engine": "google_maps",
+            "type": "search",
+            "q": query,
+        }
+    )
+
+    places: List[Place] = []
+    place_results = data.get("place_results")
+    if isinstance(place_results, dict):
+        places.append(_parse_place(place_results, category=query, source="google_maps"))
+
+    local_results = data.get("local_results") or []
+    for item in local_results:
+        if isinstance(item, dict):
+            places.append(_parse_place(item, category=query, source="google_maps"))
+        if len(places) >= limit:
+            break
+    return places
+
+
+def _search_maps_place(
+    *,
+    data_id: Optional[str] = None,
+    place_id: Optional[str] = None,
+    query: Optional[str] = None,
+) -> Optional[Place]:
+    try:
+        if data_id:
+            data = _serpapi_search(
+                {
+                    "engine": "google_maps",
+                    "type": "place",
+                    "data_id": data_id,
+                }
+            )
+            place_results = data.get("place_results")
+            if isinstance(place_results, dict):
+                return _parse_place(place_results, category=query or "place", source="google_maps")
+
+        if place_id:
+            data = _serpapi_search(
+                {
+                    "engine": "google_maps",
+                    "type": "place",
+                    "place_id": place_id,
+                }
+            )
+            place_results = data.get("place_results")
+            if isinstance(place_results, dict):
+                return _parse_place(place_results, category=query or "place", source="google_maps")
+
+        if query:
+            matches = _search_maps(query, limit=1)
+            if matches:
+                return matches[0]
+    except Exception:
+        return None
+
+    return None
 
 
 def search_attractions(destination: str, interests: Sequence[str], must_see: Sequence[str]) -> List[Place]:
@@ -374,6 +574,237 @@ def _place_label(place: Place) -> str:
     return ", ".join(parts)
 
 
+def _place_payload(place: Optional[Place]) -> Optional[Dict[str, object]]:
+    if place is None:
+        return None
+    return {
+        "name": place.name,
+        "address": place.address,
+        "url": place.place_url or _google_search_link(place.name, place.address),
+        "rating": place.rating,
+        "review_count": place.review_count,
+        "price": place.price,
+        "category": place.category,
+        "source": place.source,
+        "place_id": place.place_id or None,
+        "data_id": place.data_id or None,
+        "data_cid": place.data_cid or None,
+    }
+
+
+def _review_payload(review: Review) -> Dict[str, object]:
+    return {
+        "author": review.author,
+        "rating": review.rating,
+        "published": review.published,
+        "content": review.snippet,
+        "translated_content_en": review.translated_snippet_en or None,
+        "snippet": review.snippet,
+    }
+
+
+def _fallback_review_summary(place: Optional[Place]) -> Optional[Dict[str, object]]:
+    if place is None:
+        return None
+    if place.rating is None and place.review_count is None:
+        return None
+    return {
+        "average_rating": place.rating,
+        "total_reviews": place.review_count,
+    }
+
+
+def _collect_review_items(data: Dict[str, object]) -> List[Dict[str, object]]:
+    candidates: List[object] = [
+        data.get("reviews"),
+        data.get("user_reviews"),
+        data.get("most_relevant_reviews"),
+    ]
+
+    place_info = data.get("place_info")
+    if isinstance(place_info, dict):
+        candidates.extend(
+            [
+                place_info.get("reviews"),
+                place_info.get("user_reviews"),
+            ]
+        )
+
+    place_results = data.get("place_results")
+    if isinstance(place_results, dict):
+        candidates.extend(
+            [
+                place_results.get("reviews"),
+                place_results.get("user_reviews"),
+            ]
+        )
+
+    review_items: List[Dict[str, object]] = []
+    for candidate in candidates:
+        if isinstance(candidate, list):
+            for item in candidate:
+                if isinstance(item, dict):
+                    review_items.append(item)
+        elif isinstance(candidate, dict):
+            for nested_key in ("most_relevant", "newest", "reviews", "summary"):
+                nested = candidate.get(nested_key)
+                if isinstance(nested, list):
+                    for item in nested:
+                        if isinstance(item, dict):
+                            review_items.append(item)
+    return review_items
+
+
+def _review_sort_key(review: Review) -> str:
+    return review.published or ""
+
+
+def _translate_reviews_to_english(reviews: Sequence[Review]) -> None:
+    if not _get_env("OPENAI_API_KEY"):
+        return
+    for review in reviews:
+        content = review.snippet.strip()
+        if not content:
+            continue
+        try:
+            review.translated_snippet_en = _openai_translate_to_english(content)
+        except Exception:
+            review.translated_snippet_en = ""
+
+
+def _pick_review_target(destination: str, restaurant_name: str) -> Optional[Place]:
+    queries = [
+        f"{restaurant_name} in {destination}",
+        f"{restaurant_name} {destination}",
+        restaurant_name,
+    ]
+    for query in queries:
+        for resolver in (
+            lambda: _search_maps(query=query, limit=5),
+            lambda: _search_local(query=query, location=destination, limit=5),
+        ):
+            try:
+                matches = resolver()
+            except Exception:
+                continue
+            restaurant = next((place for place in matches if restaurant_name.lower() in place.name.lower()), None)
+            if restaurant is None and matches:
+                restaurant = matches[0]
+            if restaurant is not None:
+                enriched = _search_maps_place(
+                    data_id=restaurant.data_id or None,
+                    place_id=restaurant.place_id or None,
+                    query=f"{restaurant.name} {destination}",
+                )
+                return enriched or restaurant
+    return None
+
+
+def search_recent_reviews(
+    destination: str,
+    restaurant_name: str,
+    limit: int = 3,
+    translate_to_english: bool = False,
+) -> Dict[str, object]:
+    restaurant = _pick_review_target(destination, restaurant_name)
+    if restaurant is None:
+        return {
+            "restaurant": {
+                "name": restaurant_name,
+                "address": "",
+                "url": _google_search_link(restaurant_name, destination),
+            },
+            "reviews": [],
+            "used_fallback_summary": False,
+        }
+
+    if not restaurant.data_id and restaurant.place_id:
+        restaurant = _search_maps_place(
+            place_id=restaurant.place_id,
+            query=f"{restaurant.name} {destination}",
+        ) or restaurant
+
+    if not restaurant.data_id and not restaurant.place_id:
+        return {
+            "restaurant": _place_payload(restaurant),
+            "reviews": [],
+            "used_fallback_summary": False,
+        }
+
+    reviews: List[Review] = []
+    direct_reviews_failed = False
+
+    if restaurant.data_id or restaurant.place_id:
+        try:
+            params: Dict[str, object] = {
+                "engine": "google_maps_reviews",
+                "sort_by": "newestFirst",
+            }
+            if restaurant.data_id:
+                params["data_id"] = restaurant.data_id
+            else:
+                params["place_id"] = restaurant.place_id
+
+            data = _serpapi_search(params)
+            raw_items = _collect_review_items(data)
+            for item in raw_items:
+                if isinstance(item, dict):
+                    reviews.append(_parse_review(item))
+            reviews.sort(key=_review_sort_key, reverse=True)
+        except Exception:
+            direct_reviews_failed = True
+
+    if not reviews:
+        try:
+            place_lookup = _search_maps_place(
+                data_id=restaurant.data_id or None,
+                place_id=restaurant.place_id or None,
+                query=f"{restaurant.name} {destination}",
+            )
+            if place_lookup is not None:
+                restaurant = place_lookup
+            if restaurant.data_id or restaurant.place_id:
+                place_params: Dict[str, object] = {
+                    "engine": "google_maps",
+                    "type": "place",
+                }
+                if restaurant.data_id:
+                    place_params["data_id"] = restaurant.data_id
+                else:
+                    place_params["place_id"] = restaurant.place_id
+                place_data = _serpapi_search(place_params)
+                place_results = place_data.get("place_results")
+                if isinstance(place_results, dict):
+                    updated = _parse_place(place_results, category=restaurant.category, source="google_maps")
+                    if updated.data_id or updated.place_id:
+                        restaurant = updated
+                fallback_items = _collect_review_items(place_data)
+                for item in fallback_items:
+                    if isinstance(item, dict):
+                        reviews.append(_parse_review(item))
+                reviews.sort(key=_review_sort_key, reverse=True)
+        except Exception:
+            pass
+
+    selected_reviews = reviews[:limit]
+    if translate_to_english and selected_reviews:
+        _translate_reviews_to_english(selected_reviews)
+
+    payload = {
+        "restaurant": _place_payload(restaurant),
+        "reviews": [_review_payload(review) for review in selected_reviews],
+        "used_fallback_summary": False,
+    }
+    if not reviews:
+        fallback_summary = _fallback_review_summary(restaurant)
+        if fallback_summary is not None:
+            payload["fallback_summary"] = fallback_summary
+            payload["used_fallback_summary"] = True
+        if direct_reviews_failed:
+            payload["review_error"] = "Direct review lookup failed; using place summary fallback when available."
+    return payload
+
+
 def _build_day_title(index: int, places: Sequence[Place], destination: str) -> str:
     if not places:
         return f"Day {index} - Flexible {destination} day"
@@ -392,6 +823,8 @@ def build_itinerary(
     pace: str = "balanced",
     must_see: Optional[Sequence[str]] = None,
     dietary_constraints: Optional[Sequence[str]] = None,
+    review_place: Optional[str] = None,
+    translate_reviews_to_english: bool = False,
 ) -> Dict[str, object]:
     if not _get_env("SERPAPI_API_KEY"):
         raise RuntimeError("SERPAPI_API_KEY not configured")
@@ -418,7 +851,7 @@ def build_itinerary(
             weather_summary = {}
 
     clusters = _cluster_places(attractions, total_days)
-    days_output: List[Dict[str, str]] = []
+    days_output: List[Dict[str, object]] = []
 
     for idx in range(total_days):
         cluster = clusters[idx] if idx < len(clusters) else []
@@ -491,6 +924,10 @@ def build_itinerary(
                 "lunch": lunch_line,
                 "dinner": dinner_line,
                 "notes": " ".join(notes),
+                "morning_place": _place_payload(daytime_places[0] if daytime_places else None),
+                "afternoon_place": _place_payload(afternoon_target),
+                "lunch_place": _place_payload(lunch),
+                "dinner_place": _place_payload(dinner),
             }
         )
 
@@ -502,6 +939,26 @@ def build_itinerary(
     elif days:
         date_label = f"{days} days"
 
+    review_summary: Optional[Dict[str, object]] = None
+    if review_place:
+        try:
+            review_summary = search_recent_reviews(
+                destination,
+                review_place,
+                limit=3,
+                translate_to_english=translate_reviews_to_english,
+            )
+        except Exception:
+            review_summary = {
+                "restaurant": {
+                    "name": review_place,
+                    "address": "",
+                    "url": _google_search_link(review_place, destination),
+                },
+                "reviews": [],
+                "used_fallback_summary": False,
+            }
+
     return {
         "header": f"Itinerary for {destination} ({date_label})",
         "base_template": {
@@ -510,6 +967,7 @@ def build_itinerary(
             "why": "Keeps daily transit simple and gives easy access to food and train lines without doing a full hotel search.",
         },
         "days": days_output,
+        "review_place": review_summary,
         "meta": {
             "attractions_found": len(attractions),
             "events_found": len(events),
@@ -539,6 +997,34 @@ def format_itinerary(plan: Dict[str, object]) -> str:
         lines.append(f"Lunch: {day.get('lunch', '')}")
         lines.append(f"Dinner: {day.get('dinner', '')}")
         lines.append(f"Notes: {day.get('notes', '')}")
+    review_summary = plan.get("review_place")
+    if isinstance(review_summary, dict):
+        restaurant = review_summary.get("restaurant")
+        reviews = review_summary.get("reviews")
+        fallback_summary = review_summary.get("fallback_summary")
+        used_fallback_summary = bool(review_summary.get("used_fallback_summary"))
+        if isinstance(restaurant, dict):
+            lines.append("")
+            lines.append("Review lookup")
+            lines.append(f"Place: {restaurant.get('name', '')}")
+            lines.append(f"Address: {restaurant.get('address', '')}")
+            lines.append(f"Link: {restaurant.get('url', '')}")
+        if isinstance(reviews, list) and reviews:
+            lines.append("Top recent reviews")
+            for index, review in enumerate(reviews[:3], start=1):
+                if not isinstance(review, dict):
+                    continue
+                lines.append(
+                    f"{index}. {review.get('author', 'Anonymous')} - rating {review.get('rating', '')} - {review.get('published', '')}"
+                )
+                lines.append(f"Raw: {review.get('content', '') or review.get('snippet', '')}")
+                translated = str(review.get("translated_content_en") or "").strip()
+                if translated:
+                    lines.append(f"English: {translated}")
+        elif used_fallback_summary and isinstance(fallback_summary, dict):
+            lines.append("Review summary fallback")
+            lines.append(f"Average rating: {fallback_summary.get('average_rating', '')}")
+            lines.append(f"Total reviews: {fallback_summary.get('total_reviews', '')}")
     return "\n".join(lines)
 
 
@@ -553,6 +1039,8 @@ def main(
     pace: str = "balanced",
     must_see: Optional[Sequence[str]] = None,
     dietary_constraints: Optional[Sequence[str]] = None,
+    review_place: Optional[str] = None,
+    translate_reviews_to_english: bool = False,
 ) -> str:
     plan = build_itinerary(
         destination=destination,
@@ -565,6 +1053,8 @@ def main(
         pace=pace,
         must_see=must_see,
         dietary_constraints=dietary_constraints,
+        review_place=review_place,
+        translate_reviews_to_english=translate_reviews_to_english,
     )
     return format_itinerary(plan)
 
@@ -583,6 +1073,8 @@ if __name__ == "__main__":
     parser.add_argument("--pace", default="balanced")
     parser.add_argument("--must-see", nargs="*", default=None)
     parser.add_argument("--dietary-constraints", nargs="*", default=None)
+    parser.add_argument("--review-place", default=None)
+    parser.add_argument("--translate-reviews-to-english", action="store_true")
 
     args = parser.parse_args()
 
@@ -598,5 +1090,7 @@ if __name__ == "__main__":
             pace=args.pace,
             must_see=args.must_see,
             dietary_constraints=args.dietary_constraints,
+            review_place=args.review_place,
+            translate_reviews_to_english=args.translate_reviews_to_english,
         )
     )
