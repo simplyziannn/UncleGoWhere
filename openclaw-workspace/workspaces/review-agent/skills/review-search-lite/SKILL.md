@@ -1,13 +1,13 @@
 ---
 name: review-search-lite
-description: Retrieve one recent public review per meal suggestion via OpenAI web search, with TripAdvisor page fallback, plus average rating and review count.
+description: Retrieve one recent public review per meal suggestion via SerpApi Google Maps reviews, with TripAdvisor page fallback, plus average rating and review count.
 ---
 
 # review-search-lite
 
 Purpose
 - A lightweight review enrichment skill for meal suggestions inside a trip plan.
-- It first uses OpenAI Responses web search to find the current review snapshot, with TripAdvisor page parsing as a fallback, and translates non-English content into English when configured.
+- It first uses SerpApi Google Maps search and Google Maps reviews, with TripAdvisor page parsing as a fallback, and translates non-English content into English when configured.
 
 Primary goal
 - Given a destination and a list of breakfast/lunch/dinner places, return one recent review for each meal.
@@ -29,7 +29,7 @@ Inputs
 - translate_to_english: boolean (default true)
 
 Behavior
-- Resolve each place through OpenAI web search first.
+- Resolve each place through SerpApi Google Maps search first.
 - If that returns unusable data, fall back to TripAdvisor search and restaurant pages.
 - Retry the active path up to 3 times before treating it as failed.
 - Return one review per meal suggestion.
@@ -39,13 +39,14 @@ Behavior
 - Reject vague meal placeholders such as `food anchors`, `lunch near ...`, or `near your base`; this skill expects named establishments.
 
 Optional environment variables
+- SERPAPI_API_KEY
 - OPENAI_API_KEY
 - OPENAI_TRANSLATION_MODEL
 - OPENAI_MODEL
 
 Notes
 - Do not invent review text.
-- OpenAI web search is the primary source for this skill.
+- SerpApi Google Maps is the primary source for this skill.
 - TripAdvisor page parsing is the fallback.
 - Do not drift into DuckDuckGo, generic web search, or other review sites.
 - If translation fails, still return the raw review text when available.

@@ -52,6 +52,38 @@ PAGE_HTML = """
 
 
 class ReviewSearchLiteTests(unittest.TestCase):
+    def test_serpapi_candidate_scoring_prefers_exact_match(self):
+        exact = {
+            "title": "Eat Me Bangkok",
+            "address": "1 Soi Phiphat 2, Bangkok",
+            "type": "Restaurant",
+        }
+        other = {
+            "title": "Other Cafe",
+            "address": "Bangkok",
+            "type": "Cafe",
+        }
+        self.assertGreater(
+            review_search._serpapi_place_score(exact, "Eat Me Bangkok", "Bangkok"),
+            review_search._serpapi_place_score(other, "Eat Me Bangkok", "Bangkok"),
+        )
+
+    def test_serpapi_review_payload_is_parsed(self):
+        review = review_search._review_from_serpapi(
+            {
+                "snippet": "Inventive dishes and warm service.",
+                "rating": 5,
+                "date": "2026-03-01",
+                "user": {"name": "Alex"},
+            }
+        )
+        self.assertIsNotNone(review)
+        assert review is not None
+        self.assertEqual(review.author, "Alex")
+        self.assertEqual(review.content, "Inventive dishes and warm service.")
+        self.assertEqual(review.published, "2026-03-01")
+        self.assertEqual(review.source, "Google Maps (SerpApi)")
+
     def test_tripadvisor_search_candidates_are_extracted(self):
         paths = review_search._extract_tripadvisor_paths(SEARCH_HTML)
         self.assertEqual(len(paths), 2)
@@ -98,15 +130,6 @@ class ReviewSearchLiteTests(unittest.TestCase):
         )
         self.assertIn("4.5 stars from 1,234 reviews", summary)
         self.assertNotIn('"', summary)
-
-    def test_extract_first_json_object(self):
-        payload = review_search._extract_first_json_object(
-            '```json\n{"resolved_name":"Mono Cafe Bangkok","average_rating":4.4,"total_reviews":4000}\n```'
-        )
-        self.assertIsNotNone(payload)
-        self.assertEqual(payload["resolved_name"], "Mono Cafe Bangkok")
-        self.assertEqual(payload["total_reviews"], 4000)
-
 
 if __name__ == "__main__":
     unittest.main()

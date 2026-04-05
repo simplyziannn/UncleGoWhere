@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""review_search.py - TripAdvisor review lookup for review-agent."""
+"""review_search.py - SerpApi/TripAdvisor review lookup for review-agent."""
 
 from __future__ import annotations
 
@@ -23,8 +23,11 @@ SCHEMA = json.loads(
 TRIPADVISOR_HOST = "https://www.tripadvisor.com"
 TRIPADVISOR_SEARCH_URL = f"{TRIPADVISOR_HOST}/Search"
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
+SERPAPI_SEARCH_URL = "https://serpapi.com/search.json"
 TRIPADVISOR_MAX_ATTEMPTS = 3
 TRIPADVISOR_RETRY_DELAY_SECONDS = 1.0
+SERPAPI_MAX_ATTEMPTS = 3
+SERPAPI_RETRY_DELAY_SECONDS = 1.0
 TRIPADVISOR_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -157,57 +160,217 @@ def _request_text(url: str, params: Optional[Dict[str, str]] = None) -> str:
     raise RuntimeError("TripAdvisor request failed without a specific error")
 
 
-def _extract_first_json_object(text: str) -> Optional[Dict[str, object]]:
-    candidate = (text or "").strip()
-    if not candidate:
-        return None
-    fenced_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", candidate, flags=re.DOTALL)
-    if fenced_match:
-        candidate = fenced_match.group(1)
-    start = candidate.find("{")
-    end = candidate.rfind("}")
-    if start == -1 or end == -1 or end <= start:
-        return None
-    try:
-        parsed = json.loads(candidate[start : end + 1])
-        return parsed if isinstance(parsed, dict) else None
-    except json.JSONDecodeError:
-        return None
+def _request_json(
+    url: str,
+    params: Dict[str, str],
+    *,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: int = 30,
+    max_attempts: int = 3,
+    retry_delay_seconds: float = 1.0,
+) -> Dict[str, object]:
+    last_error: Optional[Exception] = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = requests.get(
+                url,
+                params=params,
+                headers=headers,
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, dict):
+                return data
+            raise RuntimeError("Expected JSON object response")
+        except (requests.RequestException, ValueError, RuntimeError) as exc:
+            last_error = exc
+            if attempt >= max_attempts:
+                break
+            time.sleep(retry_delay_seconds)
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("JSON request failed without a specific error")
 
 
-def _openai_web_review_lookup(destination: str, place_name: str) -> Optional[Dict[str, object]]:
-    api_key = _get_env("OPENAI_API_KEY")
+def _serpapi_key() -> Optional[str]:
+    return _get_env("SERPAPI_API_KEY") or _get_env("SERP_API_KEY")
+
+
+def _serpapi_place_score(candidate: Dict[str, object], place_name: str, destination: str) -> int:
+    title = str(candidate.get("title") or "")
+    address = str(candidate.get("address") or "")
+    candidate_text = " ".join([title, address])
+    requested_norm = _normalize_match_text(place_name)
+    destination_tokens = _match_tokens(destination)
+    candidate_norm = _normalize_match_text(candidate_text)
+    candidate_tokens = set(_match_tokens(candidate_text))
+
+    score = 0
+    if requested_norm and requested_norm in candidate_norm:
+        score += 50
+    requested_tokens = _match_tokens(place_name)
+    score += sum(5 for token in requested_tokens if token in candidate_tokens)
+    score += sum(1 for token in destination_tokens if token in candidate_tokens)
+    if str(candidate.get("type") or "").lower().endswith("restaurant"):
+        score += 2
+    if str(candidate.get("type") or "").lower().endswith("cafe"):
+        score += 2
+    if str(candidate.get("type") or "").lower().endswith("coffee shop"):
+        score += 2
+    return score
+
+
+def _pick_serpapi_result(destination: str, place_name: str) -> Optional[Dict[str, object]]:
+    api_key = _serpapi_key()
     if not api_key:
         return None
 
-    model = _get_env("OPENAI_REVIEW_MODEL") or _get_env("OPENAI_MODEL") or "gpt-5-nano"
-    prompt = (
-        "Find the current public review snapshot for this venue and return only JSON. "
-        "Prefer TripAdvisor. If TripAdvisor is unavailable, use the most credible current public source you can find. "
-        "Return exactly these fields: "
-        "resolved_name, address, average_rating, total_reviews, review_quote, translated_review_quote_en, "
-        "review_author, review_date, source_name, source_url. "
-        "If a field is unavailable, return null. "
-        f"Venue: {place_name}. Destination: {destination}."
+    queries = [
+        f"{place_name} {destination}",
+        f"{place_name}, {destination}",
+        place_name,
+    ]
+    best_candidate: Optional[Dict[str, object]] = None
+    best_score = -1
+    for query in queries:
+        data = _request_json(
+            SERPAPI_SEARCH_URL,
+            {
+                "engine": "google_maps",
+                "type": "search",
+                "q": query,
+                "hl": "en",
+                "api_key": api_key,
+            },
+            timeout=45,
+            max_attempts=SERPAPI_MAX_ATTEMPTS,
+            retry_delay_seconds=SERPAPI_RETRY_DELAY_SECONDS,
+        )
+        place_result = data.get("place_results")
+        if isinstance(place_result, dict):
+            return place_result
+        for item in data.get("local_results") or []:
+            if not isinstance(item, dict):
+                continue
+            score = _serpapi_place_score(item, place_name, destination)
+            if score > best_score:
+                best_score = score
+                best_candidate = item
+        if best_score >= 50:
+            break
+    return best_candidate
+
+
+def _serpapi_place_url(candidate: Dict[str, object], destination: str) -> str:
+    query = " ".join(
+        part.strip()
+        for part in (str(candidate.get("title") or ""), str(candidate.get("address") or ""), destination)
+        if part and part.strip()
+    )
+    if not query:
+        return ""
+    return f"https://www.google.com/maps/search/{quote_plus(query)}"
+
+
+def _place_from_serpapi(candidate: Dict[str, object], requested_name: str, destination: str) -> Place:
+    return Place(
+        name=str(candidate.get("title") or requested_name),
+        address=str(candidate.get("address") or ""),
+        rating=_safe_float(candidate.get("rating")),
+        review_count=_safe_int(candidate.get("reviews")),
+        source="Google Maps (SerpApi)",
+        place_url=_serpapi_place_url(candidate, destination),
     )
 
-    response = requests.post(
-        OPENAI_RESPONSES_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": model,
-            "input": prompt,
-            "tools": [{"type": "web_search"}],
+
+def _review_from_serpapi(review_data: Dict[str, object]) -> Optional[Review]:
+    snippets = []
+    for key in ("snippet", "text", "summary", "description"):
+        value = str(review_data.get(key) or "").strip()
+        if value:
+            snippets.append(value)
+    content = _normalize_whitespace(" ".join(snippets))
+    if not content:
+        return None
+
+    author = "Anonymous"
+    user = review_data.get("user")
+    if isinstance(user, dict):
+        author = str(user.get("name") or author)
+    elif review_data.get("username"):
+        author = str(review_data.get("username"))
+    elif review_data.get("user_name"):
+        author = str(review_data.get("user_name"))
+
+    rating = _safe_float(review_data.get("rating"))
+    if rating is None:
+        details = review_data.get("details")
+        if isinstance(details, dict):
+            rating = _safe_float(details.get("rating"))
+
+    published = (
+        str(review_data.get("date") or "")
+        or str(review_data.get("published") or "")
+        or str(review_data.get("date_published") or "")
+        or str(review_data.get("date_iso8601") or "")
+    )
+
+    return Review(
+        author=author,
+        rating=rating,
+        published=published,
+        content=content,
+        source="Google Maps (SerpApi)",
+    )
+
+
+def _fetch_serpapi_reviews(candidate: Dict[str, object]) -> List[Review]:
+    api_key = _serpapi_key()
+    if not api_key:
+        return []
+
+    data_id = str(candidate.get("data_id") or "").strip()
+    if not data_id:
+        return []
+
+    data = _request_json(
+        SERPAPI_SEARCH_URL,
+        {
+            "engine": "google_maps_reviews",
+            "data_id": data_id,
+            "hl": "en",
+            "api_key": api_key,
         },
         timeout=45,
+        max_attempts=SERPAPI_MAX_ATTEMPTS,
+        retry_delay_seconds=SERPAPI_RETRY_DELAY_SECONDS,
     )
-    response.raise_for_status()
-    data = response.json()
-    parsed = _extract_first_json_object(str(data.get("output_text") or ""))
-    return parsed
+    reviews: List[Review] = []
+    seen_contents = set()
+    review_items: List[object] = []
+    direct_reviews = data.get("reviews")
+    if isinstance(direct_reviews, list):
+        review_items.extend(direct_reviews)
+    user_reviews = data.get("user_reviews")
+    if isinstance(user_reviews, dict):
+        for key in ("most_relevant", "newest"):
+            value = user_reviews.get(key)
+            if isinstance(value, list):
+                review_items.extend(value)
+
+    for item in review_items:
+        if not isinstance(item, dict):
+            continue
+        review = _review_from_serpapi(item)
+        if review is None:
+            continue
+        key = review.content.lower()
+        if key in seen_contents:
+            continue
+        seen_contents.add(key)
+        reviews.append(review)
+    return reviews
 
 
 def _place_payload(place: Optional[Place]) -> Optional[Dict[str, object]]:
@@ -603,41 +766,26 @@ def search_recent_reviews(
     limit: int = 1,
     translate_to_english: bool = True,
 ) -> Dict[str, object]:
-    openai_error: Optional[str] = None
+    serpapi_error: Optional[str] = None
     try:
-        openai_result = _openai_web_review_lookup(destination, place_name)
+        serpapi_candidate = _pick_serpapi_result(destination, place_name)
     except Exception as exc:
-        openai_result = None
-        openai_error = f"OpenAI web review lookup failed: {exc}"
+        serpapi_candidate = None
+        serpapi_error = f"SerpApi Google Maps review lookup failed: {exc}"
 
-    if isinstance(openai_result, dict):
-        place = Place(
-            name=str(openai_result.get("resolved_name") or place_name),
-            address=str(openai_result.get("address") or ""),
-            rating=_safe_float(openai_result.get("average_rating")),
-            review_count=_safe_int(openai_result.get("total_reviews")),
-            source=str(openai_result.get("source_name") or "OpenAI web search"),
-            place_url=str(openai_result.get("source_url") or _tripadvisor_search_link(place_name, destination)),
-        )
-        review_quote = _normalize_whitespace(str(openai_result.get("review_quote") or ""))
-        translated_quote = _normalize_whitespace(
-            str(openai_result.get("translated_review_quote_en") or "")
-        )
-        selected_reviews: List[Review] = []
-        if review_quote:
-            selected_reviews.append(
-                Review(
-                    author=str(openai_result.get("review_author") or "Anonymous"),
-                    published=str(openai_result.get("review_date") or ""),
-                    content=review_quote,
-                    translated_content_en=translated_quote,
-                    source=place.source,
-                )
-            )
+    if isinstance(serpapi_candidate, dict):
+        place = _place_from_serpapi(serpapi_candidate, place_name, destination)
+        try:
+            selected_reviews = _fetch_serpapi_reviews(serpapi_candidate)[:limit]
+        except Exception as exc:
+            selected_reviews = []
+            serpapi_error = f"SerpApi Google Maps review lookup failed: {exc}"
+        if translate_to_english and selected_reviews:
+            _translate_reviews_to_english(selected_reviews)
 
         payload: Dict[str, object] = {
             "restaurant": _place_payload(place),
-            "reviews": [_review_payload(review) for review in selected_reviews[:limit]],
+            "reviews": [_review_payload(review) for review in selected_reviews],
             "used_fallback_summary": False,
             "review_source": place.source,
         }
@@ -647,7 +795,7 @@ def search_recent_reviews(
                 payload["fallback_summary"] = fallback
                 payload["used_fallback_summary"] = True
             else:
-                payload["review_error"] = "OpenAI web review lookup returned no usable review quote or summary."
+                payload["review_error"] = "SerpApi Google Maps lookup returned no usable review quote or summary."
         return payload
 
     page_url = _pick_tripadvisor_page_url(destination, place_name)
@@ -664,8 +812,8 @@ def search_recent_reviews(
             "review_source": "TripAdvisor",
             "review_error": "TripAdvisor review lookup failed to resolve a venue page.",
         }
-        if openai_error:
-            payload["review_error"] = f"{openai_error} | {payload['review_error']}"
+        if serpapi_error:
+            payload["review_error"] = f"{serpapi_error} | {payload['review_error']}"
         return payload
 
     try:
@@ -683,8 +831,8 @@ def search_recent_reviews(
             "review_source": "TripAdvisor",
             "review_error": f"TripAdvisor page fetch failed: {exc}",
         }
-        if openai_error:
-            payload["review_error"] = f"{openai_error} | {payload['review_error']}"
+        if serpapi_error:
+            payload["review_error"] = f"{serpapi_error} | {payload['review_error']}"
         return payload
 
     jsonld_objects = _extract_jsonld_objects(page_html)
@@ -715,8 +863,8 @@ def search_recent_reviews(
             payload["used_fallback_summary"] = True
         else:
             payload["review_error"] = "TripAdvisor page found but no structured review summary was available."
-    if openai_error and not payload.get("reviews"):
-        payload["review_error"] = f"{openai_error} | {payload.get('review_error', '')}".strip(" |")
+    if serpapi_error and not payload.get("reviews"):
+        payload["review_error"] = f"{serpapi_error} | {payload.get('review_error', '')}".strip(" |")
     return payload
 
 

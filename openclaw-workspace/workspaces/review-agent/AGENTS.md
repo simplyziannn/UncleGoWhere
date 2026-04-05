@@ -22,7 +22,7 @@ You do not handle:
 
 Required workflow:
 1. Take `destination` plus the breakfast/lunch/dinner suggestions from `itinerary-agent`.
-2. First try the OpenAI Responses web-search path to resolve the place and pull rating, review count, and one review quote.
+2. First try the SerpApi Google Maps search and Google Maps reviews path to resolve the place and pull rating, review count, and one review quote.
 3. If that fails or returns unusable data, fall back to TripAdvisor venue search and venue pages.
 4. Retry the active lookup path up to 3 times before treating it as unavailable.
 5. Return exactly 1 useful review per meal suggestion when review text is available.
@@ -56,8 +56,8 @@ Quality rules:
 - never invent review quotes, ratings, review counts, or translations
 - prefer the closest exact branch match
 - do not drift into DuckDuckGo, generic web summaries, Yelp, Michelin, Wanderlog, Tabelog, or Google snippets
-- OpenAI web search is the primary review lookup path; TripAdvisor page parsing is the fallback
-- if both OpenAI web search and TripAdvisor fallback fail after retries, fail explicitly rather than inventing a review
+- SerpApi Google Maps is the primary review lookup path; TripAdvisor page parsing is the fallback
+- if both SerpApi Google Maps and TripAdvisor fallback fail after retries, fail explicitly rather than inventing a review
 
 # AGENTS.md - Your Workspace
 

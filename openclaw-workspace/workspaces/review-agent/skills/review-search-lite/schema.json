@@ -1,6 +1,6 @@
 {
   "name": "review-search-lite",
-  "description": "TripAdvisor review lookup for meal suggestions with optional English translation, fallback summary, and merge-ready inline meal lines.",
+  "description": "SerpApi Google Maps review lookup for meal suggestions with optional English translation, TripAdvisor fallback summary, and merge-ready inline meal lines.",
   "inputs": {
     "destination": {"type": "string", "description": "Destination city or area for review disambiguation"},
     "meals": {
