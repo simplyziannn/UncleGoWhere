@@ -46,6 +46,7 @@ Behavior
 - Keep each day to one main morning activity, one main afternoon activity, and one main evening activity.
 - Always include breakfast, lunch, and dinner suggestions.
 - Treat dietary constraints as none stated unless they are explicitly provided.
+- Do not fetch or translate restaurant reviews here; the concierge should hand meal review enrichment to `review-agent`.
 - Never claim exact opening hours, reservation guarantees, or exact transit times unless verified.
 
 Data sources
