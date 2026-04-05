@@ -611,9 +611,6 @@ def _place_label(place: Place) -> str:
         parts.append(place.address)
     if place.rating is not None:
         parts.append(f"rating {place.rating:.1f}")
-    link = _google_search_link(place.name, place.address)
-    if link:
-        parts.append(link)
     return ", ".join(parts)
 
 
@@ -998,11 +995,6 @@ def build_itinerary(
 
     return {
         "header": f"Itinerary for {destination} ({date_label})",
-        "base_template": {
-            "recommended_area": f"Stay near a central transit-friendly base in {destination}",
-            "room_setup": "Template: 2 to 3 rooms or a group-friendly serviced apartment",
-            "why": "Keeps daily transit simple and gives easy access to food and train lines without doing a full hotel search.",
-        },
         "days": days_output,
         "meta": {
             "attractions_found": len(attractions),
@@ -1015,13 +1007,6 @@ def build_itinerary(
 def format_itinerary(plan: Dict[str, object]) -> str:
     header = str(plan.get("header") or "Itinerary")
     lines = [header]
-    base = plan.get("base_template")
-    if isinstance(base, dict):
-        lines.append("")
-        lines.append("Base template")
-        lines.append(f"Recommended area: {base.get('recommended_area', '')}")
-        lines.append(f"Room setup: {base.get('room_setup', '')}")
-        lines.append(f"Why: {base.get('why', '')}")
     for day in plan.get("days", []):
         if not isinstance(day, dict):
             continue
