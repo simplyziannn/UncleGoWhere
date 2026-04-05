@@ -169,6 +169,11 @@ Include concrete food planning:
 Before you return the itinerary, verify that every day has visible `Breakfast`, `Lunch`, and `Dinner` lines with named establishments.
 If even one day is missing a named meal place, do not send the itinerary yet.
 
+Do not label the itinerary as a draft.
+Do not ask whether the user wants you to turn it into a finalized plan.
+Do not use the word `anchor` for meals in the user-facing itinerary.
+Do not ask hotel, reservation, or must-do follow-ups unless the request explicitly includes those.
+
 Do not include hotel/base recommendations unless the user explicitly asks where to stay.
 
 Return one itinerary only unless the user explicitly asks for alternatives.

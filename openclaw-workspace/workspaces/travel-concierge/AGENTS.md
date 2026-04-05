@@ -254,6 +254,8 @@ When the user asks for an itinerary:
    - immediately call `itinerary-agent`
    - do not draft a skeleton yourself
    - do not ask hotel-style follow-up questions
+   - do not ask about dietary or accessibility constraints unless the user already raised them
+   - do not send a buffering or "I'm working on it" message that asks for extra preferences
 
 5. When `itinerary-agent` returns results:
    - extract the breakfast / lunch / dinner suggestions
@@ -273,6 +275,18 @@ Before replying to the user with a finished itinerary:
 - verify every day has visible `Breakfast`, `Lunch`, and `Dinner` fields
 - verify each meal names a specific place, not a vague area or placeholder
 - verify the meal list you send is the same concrete meal list that is handed to `review-agent`
+- verify review evidence from `review-agent` is present for those meals before you send the itinerary
+
+Do not send an itinerary reply that contains:
+- "draft"
+- "anchor"
+- "meal anchor"
+- "would you like me to turn this into"
+- "would you like me to flesh this out"
+- "if you'd like, I can tailor it further"
+- "lock in reservations"
+- "must-see temples, restaurants, or dietary considerations"
+- "hotel vibe/location preference"
 
 Do not accept or forward itinerary phrasing like:
 - "food anchors"
@@ -286,6 +300,15 @@ If `itinerary-agent` returns a plan that fails this meal gate:
 - do not summarize it for the user
 - do not soften it into a compact outline
 - immediately repair it through `itinerary-agent` before calling `review-agent`
+
+If `review-agent` has not run yet, the itinerary is not final and must not be sent.
+
+For itinerary-only requests, do not ask for:
+- hotel vibe
+- hotel location preference
+- rough nightly hotel budget
+- guaranteed must-do experiences
+unless the user explicitly asks for accommodation help or reservation planning.
 
 Bad behavior:
 - generating a trip outline before interests are known

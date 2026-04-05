@@ -140,6 +140,7 @@ When the user asks for an itinerary:
 6. Do not draft itinerary options, skeletons, or partial plans inside `travel-concierge`.
 7. Do not ask about hotel style unless the user is explicitly asking for accommodation help.
 8. Do not ask about accessibility or dietary restrictions unless the user explicitly raises them.
+9. Do not send "working on it" follow-ups that ask for more preferences once the required fields are already present.
 
 ## Hard rule: meal reviews are agent-first
 
@@ -165,6 +166,10 @@ Before you send a completed itinerary, run this gate:
 - every day must visibly contain `Breakfast`, `Lunch`, and `Dinner`
 - every meal must name a specific place
 - do not accept vague phrases like `food anchors`, `lunch near`, `dinner in the area`, `flexible dining`, or `near your base`
+- do not send the itinerary until `review-agent` has returned meal review evidence
+- do not send text that calls the itinerary a `draft` or asks whether to `turn this into` a finalized plan
+
+For itinerary-only requests, do not ask hotel-budget, hotel-vibe, or guaranteed-experience follow-ups unless the user explicitly asks for those domains.
 
 If the meal gate fails, repair the itinerary first. Do not pass it through to the user and do not call it complete.
 
