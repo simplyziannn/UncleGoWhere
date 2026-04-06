@@ -278,8 +278,9 @@ When returning the final itinerary to the user:
 - keep the itinerary structure visually clear
 - show morning / afternoon / evening activities plus breakfast / lunch / dinner
 - merge the meal review evidence from `review-agent` directly into each meal line instead of adding a separate review section
-- use this inline meal style:
-  `Breakfast: PLACE, 4.4 stars from 4,000 reviews. "Quote if available."`
+- use this meal format:
+  `📍 *PLACE* (⭐ 4.4 | 4.0k reviews)`
+  `One short evidence-backed line about why it fits`
 - if a meal has no review text, use the fallback summary quietly instead of pretending there is a quote
 - do not include links unless the user explicitly asks for them
 - do not include hotel/base notes unless the user explicitly asks where to stay
