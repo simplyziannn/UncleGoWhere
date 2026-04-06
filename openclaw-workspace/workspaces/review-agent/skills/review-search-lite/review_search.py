@@ -39,10 +39,6 @@ TRIPADVISOR_HEADERS = {
 MATCH_STOPWORDS = {
     "and",
     "the",
-    "bangkok",
-    "tokyo",
-    "johor",
-    "bahru",
     "restaurant",
     "restaurants",
     "cafe",
@@ -50,9 +46,6 @@ MATCH_STOPWORDS = {
     "bar",
     "kitchen",
     "dining",
-    "thailand",
-    "japan",
-    "singapore",
 }
 GENERIC_MEAL_NAME_FRAGMENTS = (
     "food anchors",
@@ -129,6 +122,19 @@ def _match_tokens(text: str) -> List[str]:
         for token in _normalize_match_text(text).split()
         if len(token) > 1 and token not in MATCH_STOPWORDS
     ]
+
+
+def _infer_gl(destination: str) -> Optional[str]:
+    normalized = _normalize_match_text(destination)
+    if any(token in normalized for token in ("johor", "bahru", "kuala lumpur", "penang", "malaysia")):
+        return "my"
+    if "singapore" in normalized:
+        return "sg"
+    if any(token in normalized for token in ("tokyo", "osaka", "kyoto", "japan")):
+        return "jp"
+    if any(token in normalized for token in ("bangkok", "chiang mai", "phuket", "thailand")):
+        return "th"
+    return None
 
 
 def _decode_json_escaped_text(value: str) -> str:
@@ -228,21 +234,27 @@ def _pick_serpapi_result(destination: str, place_name: str) -> Optional[Dict[str
 
     queries = [
         f"{place_name} {destination}",
+        f"{place_name} restaurant {destination}",
         f"{place_name}, {destination}",
         place_name,
     ]
+    gl = _infer_gl(destination)
     best_candidate: Optional[Dict[str, object]] = None
     best_score = -1
     for query in queries:
+        params = {
+            "engine": "google_maps",
+            "type": "search",
+            "q": query,
+            "hl": "en",
+            "no_cache": "true",
+            "api_key": api_key,
+        }
+        if gl:
+            params["gl"] = gl
         data = _request_json(
             SERPAPI_SEARCH_URL,
-            {
-                "engine": "google_maps",
-                "type": "search",
-                "q": query,
-                "hl": "en",
-                "api_key": api_key,
-            },
+            params,
             timeout=45,
             max_attempts=SERPAPI_MAX_ATTEMPTS,
             retry_delay_seconds=SERPAPI_RETRY_DELAY_SECONDS,
@@ -340,6 +352,7 @@ def _fetch_serpapi_reviews(candidate: Dict[str, object]) -> List[Review]:
             "engine": "google_maps_reviews",
             "data_id": data_id,
             "hl": "en",
+            "no_cache": "true",
             "api_key": api_key,
         },
         timeout=45,
