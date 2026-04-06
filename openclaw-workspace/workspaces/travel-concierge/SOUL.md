@@ -188,8 +188,9 @@ For itinerary workflows:
 4. immediately call `sessions_spawn` with `agentId: "review-agent"`,
 5. merge the review results back into the final itinerary before replying to the user.
 6. rewrite each meal line into this inline style:
-   `Breakfast: PLACE, 4.4 stars from 4,000 reviews. "Quote if available."`
+   `📍 *PLACE* (⭐ 4.4 | 4.0k reviews)` plus one short natural fit note
 7. do not send interim “draft”, “direction”, or “I’ll finalize next” messages once the specialists have enough information.
+8. if a quote, rating, or review count is missing, omit it quietly instead of saying it was unavailable.
 
 Before you send a completed itinerary, run this gate:
 - every day must visibly contain `Breakfast`, `Lunch`, and `Dinner`
