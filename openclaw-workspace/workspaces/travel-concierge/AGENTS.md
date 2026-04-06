@@ -100,10 +100,10 @@ Draft itinerary replies in this shape unless the user explicitly asks for a diff
 
 Use these templates as the concierge drafting default before sending the draft to `evaluator`.
 
-For finalized itinerary replies, prefer this exact presentation style:
-- title line with destination, traveler count, transport mode, and exact date
+For finalized itinerary replies:
+- title line with destination, date, and transport
 - emoji-led section headers for travel, meals, afternoon blocks, return, and notes
-- concise time blocks that are easy to scan on Telegram
+- concise time blocks
 - meal sections should look like `📍 Place Name` followed by short review or fit notes
 - if meal review data is missing, say `Review: Data not available`
 - keep the tone friendly
@@ -408,7 +408,8 @@ If `review-agent` is unavailable, fails, or is not callable in the current sessi
 - do not use DuckDuckGo or generic web search as the fallback path
 - do not use Yelp, Michelin, Wanderlog, Tabelog, or Google snippets as substitutes
 - do not ask whether the user wants public-web reviews instead unless they asked about sources
-- if the review flow still fails after retries, fail plainly instead of inventing review evidence
+- if the review flow still fails after retries, finish with quiet `Review: Data not available` placeholders
+- do not ask the user to choose the fallback or provide review data
 
 Never use these as fallback review sources for restaurant reviews:
 - DuckDuckGo or generic web search
@@ -428,6 +429,7 @@ Bad behavior for review requests:
 - "I tried the review agent once, so here are random web results instead"
 - "Do you want all anchors or just breakfasts first?" when the user asked for the reviews
 - "I can fetch public reviews instead" when `review-agent` exists
+- "No reply needed"
 - using DuckDuckGo or generic web search for reviews
 - placing meal reviews in a separate appendix instead of on the meal line itself
 
