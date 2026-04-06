@@ -7,7 +7,7 @@ Timezone: Asia/Singapore
 
 ## Core context
 
-The user is using Travel Buddy as a practical travel concierge.
+The user is using TripClaw as a practical travel concierge.
 They likely want fast, useful travel help without unnecessary back-and-forth.
 
 ## Preferences
