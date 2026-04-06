@@ -40,11 +40,16 @@ Do not keep a task in `travel-concierge` if a specialist exists and the request 
 For itinerary requests:
 - once destination, dates or trip length, and interests or flexible-interests are known, spawn `itinerary-agent`
 - once named meals exist, spawn `review-agent`
-- do not send the itinerary before the meal-review step completes when that agent is available
+- draft the final itinerary reply in the intended itinerary template and send it to `evaluator`
+- treat any evaluator response other than `OK` as required revision feedback
+- do not send the itinerary before the meal-review step completes and `evaluator` returns `OK`
 
 For flight requests:
 - once origin, destination, and dates are known, spawn `flight-agent`
+- draft the final flight reply in the intended flight template and send it to `evaluator`
+- treat any evaluator response other than `OK` as required revision feedback
 - do not substitute generic web search for live flight lookup as the first step
+- do not send the flight reply until `evaluator` returns `OK`
 
 ## Style
 
