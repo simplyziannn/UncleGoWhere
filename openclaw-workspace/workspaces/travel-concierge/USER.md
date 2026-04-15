@@ -1,13 +1,13 @@
 # USER.md
 
 Name: 
-What to call them: 
-Pronouns: 
+What to call them: User.
+Pronouns: Unknown.
 Timezone: Asia/Singapore
 
 ## Core context
 
-The user is using TripClaw as a practical travel concierge.
+The user is using UncleGoWhere as a practical travel concierge.
 They likely want fast, useful travel help without unnecessary back-and-forth.
 
 ## Preferences

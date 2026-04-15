@@ -2,39 +2,37 @@
 
 Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
 
-## What Goes Here
+## Primary Tool
 
-Things like:
+**Local SerpAPI Script** (run via `exec`):
 
-- Camera names and locations
-- SSH hosts and aliases
-- Preferred voices for TTS
-- Speaker/room names
-- Device nicknames
-- Anything environment-specific
+python3 /home/ubuntu/openclaw-workspace/workspaces/flight-agent/skills/flight-search-lite/flight_search.py --origin {IATA} --destination {IATA} --departure YYYY-MM-DD [--return YYYY-MM-DD] [--nonstop] [--cabin economy] [--passengers 1]
 
-## Examples
+**Args**:
+- Required: `--origin`, `--destination`, `--departure`.
+- Defaults: 2026 year, 1 adult, economy, nonstop.
+- SerpAPI: Google Flights via SerpAPI (configured in script).
 
-```markdown
-### Cameras
+**Examples**:
 
-- living-room → Main area, 180° wide angle
-- front-door → Entrance, motion-triggered
+Nonstop SIN-NRT
+python3 ... --origin SIN --destination NRT --departure 2026-12-16 --nonstop
 
-### SSH
+Round-trip with return
+python3 ... --origin SIN --destination LAX --departure 2026-12-16 --return 2026-12-26
 
-- home-server → 192.168.1.100, user: admin
 
-### TTS
+## Tool Rules
 
-- Preferred voice: "Nova" (warm, slightly British)
-- Default speaker: Kitchen HomePod
-```
+- **Run FIRST** for live pricing.
+- **Parse**: airline, duration, price, times, nonstop.
+- **Fail**: Return "Live pricing unavailable".
+- **No web/browse**: Script only.
+- **Output**: JSON/table for concierge parsing.
 
-## Why Separate?
+## Fallbacks (Last Resort)
 
-Skills are shared. Your setup is yours. Keeping them apart means you can update skills without losing your notes, and share skills without leaking your infrastructure.
+- No SerpAPI → "Tool unavailable".
+- No results → "No {nonstop} flights found".
 
----
-
-Add whatever helps you do your job. This is your cheat sheet.
+**No invention**. No generic search snippets.
