@@ -1,203 +1,115 @@
 # TOOLS.md — travel-concierge
 
-## Tooling Rules
+## Tooling rules
 
 - Use specialist agents for all live travel work.
-- Do not substitute generic web search for live fare, review, or itinerary
-  delegation when a specialist exists.
-- Keep orchestration logic in AGENTS.md, not here.
-- Keep tool usage narrow, explicit, and task-based.
-- Every message sent to the user — greeting, intake question, clarification,
-  content reply — must pass through evaluator before reaching the user.
-  No exceptions.
+- Do not substitute generic web search when a specialist exists.
+- Every outbound user message passes through evaluator. No exceptions.
 
 ---
 
-## Session Tools
+## Session tools
 
-- `sessions_spawn` — spawn a sub-agent session for specialist work
+- `sessions_spawn` — spawn a sub-agent session
 - `sessions_history` — read transcript of a spawned session
 - `subagents` — list or kill spawned sub-agents
 
 ---
 
-## Specialist Map
-
----
+## Specialist spawn contracts
 
 ### flight-agent
+When: user requests live fares, route lookup, airline comparison on a specific route.
 
-**When to call:** User requests live flight fares, route + date lookup,
-cheapest flight options, or airline comparison on a specific route.
-
-**Pass:**
-- `origin` — IATA code or city name
-- `destination` — IATA code or city name
-- `departure_date`
-- `return_date` (if round-trip)
-- `travelers` — default: 1 adult
-- `cabin` — default: Economy
-- `stops` — default: nonstop only
-
-**Returns:** Structured list of flight options with airline, duration, fare, stops.
-
-**Do not call for:** Airline reputation questions, legroom comparisons,
-general route existence questions. Answer those directly via evaluator.
+task format:
+"Search nonstop economy flights from {ORIGIN} to {DEST}.
+ Departure: {DEPARTURE_DATE}. Return: {RETURN_DATE} (omit if one-way).
+ Travelers: {PAX} adult(s). Cabin: {CABIN}. Nonstop only: {YES/NO}.
+ Return top 3 options with airline, departure time, arrival time,
+ total duration, and price in SGD."
 
 ---
 
 ### stay-agent
+When: user requests accommodation options or hotel shortlist.
 
-**When to call:** User requests accommodation options, hotel recommendations,
-or nightly rate search for a destination and date range.
-
-**Pass:**
-- `destination`
-- `check_in_date`
-- `check_out_date`
-- `travelers`
-- `budget_style` or `nightly_ceiling` (if stated)
-- `neighbourhood_preference` (if stated)
-
-**Returns:** Shortlist of properties with name, area, nightly rate,
-total cost, brief fit note per property.
-
-**Do not call for:** General neighbourhood advice or walkability questions.
-Answer those directly via evaluator.
+task format:
+"Find 3–5 mid-range hotels in {DEST}.
+ Check-in: {CHECK_IN}. Check-out: {CHECK_OUT}.
+ Travelers: {PAX} adult(s). Budget style: {BUDGET_STYLE}.
+ Preferred neighbourhood: {NEIGHBOURHOOD} (omit if not stated).
+ Return property name, area, nightly rate, total cost,
+ and one brief fit note per property."
 
 ---
 
 ### itinerary-agent
+When: user requests a day-by-day plan or structured itinerary.
 
-**When to call:** User requests a day-by-day plan, structured trip itinerary,
-or daily activity and meal sequencing.
-
-**Pass:** A full plain-English `task` string including:
-- destination
-- date range or trip length
-- interests (or "flexible" if confirmed)
-- traveler count and type
-- pace preference (if stated)
-- hard constraints (budget, mobility, dietary) if stated
-
-**Never pass:** Placeholder values, empty tasks, or partial fields.
-
-**Returns:** Day-by-day plan with named activities and named meal venues per day.
-
-**Gate:** Apply itinerary meal completeness gate before accepting output.
-If gate fails, repair through itinerary-agent before spawning review-agent.
+task format:
+"Plan a {N}-day itinerary for {DEST}.
+ Dates: {START_DATE} to {END_DATE}.
+ Travelers: {PAX} adult(s). Interests: {INTERESTS}.
+ Preferred area: {AREA} (omit if not stated).
+ Pace: {PACE} (omit if not stated).
+ Constraints: {CONSTRAINTS} (omit if none).
+ Name specific venues for Breakfast, Lunch, and Dinner every day.
+ No vague placeholders — every meal must be a specific named place."
 
 ---
 
 ### review-agent
+When: a named meal venue needs rating and review count evidence.
+One spawn per venue. Do not batch.
 
-**When to call:** A named meal venue needs rating and review count evidence.
-Spawn once per venue. Do not batch multiple venues into one spawn.
-
-**Pass (per spawn):**
-- `destination`
-- `meal_type` — Breakfast / Lunch / Dinner
-- `place_name` — exact name as returned by itinerary-agent
-
-**Returns:** One of:
-- `{PLACE}, {X.X}★ from {X,XXX} reviews. "{quote}"`
-- `{PLACE}, {X.X}★ from {X,XXX} reviews. (No quote available.)`
-- `Review: Data not available`
-
-**Do not call for:** Vague venue names or area descriptions.
-Validate the venue name before spawning — see Itinerary workflow step 7 in AGENTS.md.
+task format:
+"Find the Google Maps or TripAdvisor rating and review count
+ for {PLACE_NAME} in {DEST}.
+ Meal type: {MEAL_TYPE}.
+ Return: place name, star rating, total review count,
+ and one short representative quote.
+ If no data found, return exactly: Review: Data not available"
 
 ---
 
 ### profile-agent
+When: budget style, airline loyalty, hotel tier, pace, or traveler type
+is absent from the current session and would materially change the plan.
 
-**When to call:** Missing preference context (budget style, airline loyalty,
-hotel tier, pace, dietary constraints, traveler type) would materially change
-specialist output, and that context is absent from the current session.
+task format:
+"Retrieve stored preferences for this user.
+ Current session context: {CONTEXT_SUMMARY}.
+ Return relevant preferences: budget style, airline loyalty,
+ hotel tier, pace, dietary constraints, traveler type."
 
-**Pass:** A plain-English task describing what preference context is needed,
-plus any relevant signals from the current session.
-
-**Returns:** Stored user preference data relevant to the current request.
-
-**Do not call:** On every turn. Only when missing preferences would meaningfully
-change the plan.
-
-**Priority rule:** Profile data is a secondary signal only.
-Current session input always takes precedence over stored preferences.
+Do not call on every turn.
 
 ---
 
 ### evaluator
+When: before every single message sent to the user. No exceptions.
 
-**When to call:** Before every single message that goes to the user.
-No exceptions. This includes:
-- First greeting when a session starts
-- Intake questions collecting missing fields
-- Mid-flow clarifications (budget conflict, missing info)
-- Full content replies (flight results, stay options, itinerary, reviews)
-- Advisory answers
-- Error or fallback messages
+task format:
+"flow_type: {greeting|intake|clarification|flight|stay|
+            itinerary|review|composite|advisory}
+ original_user_message: {user's exact last message, empty for greeting}
+ draft_reply: {full plain structured reply OR plain-English instruction}"
 
-**Pass:**
+For content replies: full factual structured data, no tone.
+For non-content (greeting, intake, clarification):
+  short plain-English instruction of what to communicate.
+  Evaluator generates the wording.
 
-flow_type : greeting | intake | clarification | flight |
-stay | itinerary | review | composite | advisory
-original_user_message : the user's exact last message (empty string for greeting)
-draft_reply : see below
-
-
-**What to put in `draft_reply`:**
-
-For **content replies** (flight, stay, itinerary, review, composite):
-- Full structured factual text with all fields present.
-- No tone, no Singlish, no uncle language. Plain structured data only.
-- Evaluator rewrites this into uncle voice.
-
-For **non-content messages** (greeting, intake, clarification, advisory):
-- A short plain-English instruction describing exactly what
-  needs to be communicated to the user.
-- Evaluator generates the actual wording in uncle voice.
-
-Examples:
-// Greeting
-draft_reply: "Greet the user. Let them know you can help with flights,
-stays, itineraries, and restaurant reviews. Ask what they need today."
-
-// Intake
-draft_reply: "Missing fields: origin, travel dates, traveler count,
-interests. Ask for all in one message."
-
-// Budget conflict
-draft_reply: "Flight fares plus estimated stay costs exceed the stated
-SGD 1800 budget. Ask the user to adjust the budget, shorten the trip,
-or proceed anyway."
-
-// Advisory
-draft_reply: "SIN–NRT nonstop exists on Singapore Airlines, ANA, Japan
-Airlines, and Scoot. SQ and ANA have the best legroom in economy.
-Scoot is the cheapest but has tighter seats."
-
-
-**Returns:** Complete uncle-toned message ready to send to the user.
-
-**Rules:**
-- Do not expect `OK`, `FAIL`, or revision bullets from evaluator.
-- Do not modify evaluator's output before sending it.
-- Do not send any user-facing message without evaluator returning a real result first.
-- Timeout: if evaluator does not respond within 10 seconds, send the
-  plain `draft_reply` directly with inline note:
-  `[Style rewrite unavailable — sending as is.]`
+Returns: complete uncle-toned message. Send it unchanged.
+Timeout: 10 seconds. On timeout send draft_reply with:
+[Style rewrite unavailable — sending as is.]
 
 ---
 
-## Operating Notes
+## Operating notes
 
-- Prefer a single delegated task per specialist per turn.
-- If the prompt needs more than one specialist, coordinate through the
-  orchestration rules in AGENTS.md.
-- If a child agent returns incomplete data, repair at the specialist level
-  before passing anything to evaluator.
-- evaluator is always the last call in any flow. Nothing reaches the user
-  before it.
-- Avoid duplicating workflow policy from AGENTS.md.
+- Never pass a task label or placeholder. Every task string must contain
+  actual field values.
+- Subagents have no access to conversation context. Everything they need
+  must be inside the task string.
+- evaluator is always the final call. Nothing reaches the user before it.

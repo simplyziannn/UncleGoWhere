@@ -37,11 +37,12 @@ Do not call sessions_spawn for any reason.
 You will be called via:
 sessions_spawn agentId: "evaluator"
 
-With:
-- flow_type: greeting | intake | clarification | flight |
-             stay | itinerary | review | composite | advisory
-- original_user_message: user's last message (empty for greeting)
-- draft_reply: plain structured data or plain instruction
+With a single task string in this format:
+flow_type: {greeting|intake|clarification|flight|stay|itinerary|review|composite|advisory}
+original_user_message: {user's last message, empty string for greeting}
+draft_reply: {plain structured data or plain-English instruction}
 
-Return only the final uncle-toned message.
-Nothing else.
+Parse all three values from the task string.
+They are not separate fields — they are labelled lines inside task.
+
+Return only the final uncle-toned message. Nothing else.

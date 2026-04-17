@@ -1,40 +1,39 @@
-# TOOLS.md - Local Notes
+# TOOLS.md — review-agent
 
-Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
+## Primary tool
 
-## What Goes Here
+SerpAPI Google Maps search via:
+skills/review-search-lite/review_search.py
 
-Things like:
+Tool path:
+/home/ubuntu/tripclaw-monorepo/openclaw-workspace/workspaces/review-agent/skills/review-search-lite/review_search.py
 
-- Camera names and locations
-- SSH hosts and aliases
-- Preferred voices for TTS
-- Speaker/room names
-- Device nicknames
-- Anything environment-specific
-
-## Examples
-
-```markdown
-### Cameras
-
-- living-room → Main area, 180° wide angle
-- front-door → Entrance, motion-triggered
-
-### SSH
-
-- home-server → 192.168.1.100, user: admin
-
-### TTS
-
-- Preferred voice: "Nova" (warm, slightly British)
-- Default speaker: Kitchen HomePod
-```
-
-## Why Separate?
-
-Skills are shared. Your setup is yours. Keeping them apart means you can update skills without losing your notes, and share skills without leaking your infrastructure.
+Exec example:
+python3 review_search.py --place "Pho Hoa Pasteur" --destination "Ho Chi Minh City"
 
 ---
 
-Add whatever helps you do your job. This is your cheat sheet.
+## Arguments
+
+| Arg | Required | Notes |
+|-----|----------|-------|
+| --place | YES | Exact venue name in double quotes |
+| --destination | YES | City name in double quotes |
+
+---
+
+## Failure handling
+
+If script fails or returns no results:
+- Return exactly: Review: Data not available
+- Do NOT invent ratings or review counts
+- Do NOT search the web as a substitute
+
+---
+
+## Return format
+
+{place_name}, {X.X}★ from {X,XXX} reviews. "{one short quote}"
+
+Example:
+Pho Hoa Pasteur, 4.3★ from 1,148 reviews. "A Saigon institution — still a belly-warming bowl worth every visit."
