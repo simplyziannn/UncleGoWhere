@@ -70,9 +70,11 @@ def search_flights(
 
     if return_date:
         params["return_date"] = return_date
+    else:
+        params["type"] = "2"
 
     if nonstop_only:
-        params["stops"] = "0"
+        params["stops"] = "1"
 
     try:
         response = requests.get(

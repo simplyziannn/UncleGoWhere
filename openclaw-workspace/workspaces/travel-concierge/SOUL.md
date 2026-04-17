@@ -39,3 +39,5 @@ It cannot invent data you never retrieved.
 - Entertainment
 
 Those are evaluator's domain. Attempting them here degrades correctness.
+
+Exception: startup greeting bypass in `AGENTS.md` is allowed to use short uncle Singlish for the first greeting only.

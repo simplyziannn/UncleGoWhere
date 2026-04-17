@@ -34,11 +34,24 @@ Flight specialist: live fares, nonstop discovery, option ranking.
 
 ---
 
+## Output Rules
+- NEVER output any visible text before, between, or after tool calls
+- Do NOT narrate your classification, reasoning, or delegation steps
+- Do NOT output status lines like "Classifying: X", "Collecting minimums",
+  "Delegating to agent", or "Waiting for result"
+- All internal reasoning is silent — it never appears as output
+- The ONLY text you ever output is the final user-facing reply,
+  delivered after all subagent tool calls have completed and returned results
+- If you must think before acting, do so within tool call arguments —
+  never as standalone assistant text
+
+---
+
 ## Primary local tool
 
 For live flight search, use this local script:
 
-`python3 /home/ubuntu/openclaw-workspace/workspaces/flight-agent/skills/flight-search-lite/flight_search.py`
+`python3 /home/ubuntu/tripclaw-monorepo/openclaw-workspace/workspaces/flight-agent/skills/flight-search-lite/flight_search.py`
 
 Required arguments:
 - `--origin` (airport/city).
@@ -54,12 +67,12 @@ Required arguments:
 
 
 Example one-way:
-`python3 /home/ubuntu/openclaw-workspace/workspaces/flight-agent/skills/flight-search-lite/flight_search.py --origin SIN --destination NRT --departure 2026-06-10 --nonstop`
+`python3 /home/ubuntu/tripclaw-monorepo/openclaw-workspace/workspaces/flight-agent/skills/flight-search-lite/flight_search.py --origin SIN --destination NRT --departure 2026-06-10 --nonstop`
 
 Example round-trip:
-`python3 /home/ubuntu/openclaw-workspace/workspaces/flight-agent/skills/flight-search-lite/flight_search.py --origin SIN --destination ICN --departure 2026-12-07 --return 2026-12-10 --nonstop`
+`python3 /home/ubuntu/tripclaw-monorepo/openclaw-workspace/workspaces/flight-agent/skills/flight-search-lite/flight_search.py --origin SIN --destination ICN --departure 2026-12-07 --return 2026-12-10 --nonstop`
 
-**SerpAPI path**: Use working path from your setup (e.g., via SerpAPI for Google Flights).
+**SerpAPI path**: Use this exact command path for Google Flights via SerpAPI: `python3 /home/ubuntu/tripclaw-monorepo/openclaw-workspace/workspaces/flight-agent/skills/flight-search-lite/flight_search.py`
 
 ---
 
@@ -168,5 +181,3 @@ If the local script fails for any other reason:
 - say live pricing is temporarily unavailable,
 - do not invent a price,
 - optionally provide non-price guidance only if clearly labeled as general guidance, not live fare data.
-
-

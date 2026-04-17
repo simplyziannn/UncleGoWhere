@@ -15,7 +15,7 @@ user: Conversation info (untrusted metadata):
 {
   "message_id": "359",
   "sender_id": "390464238",
-  "sender": "aaaa",
+  "sender": "390464238",
   "timestamp": "Fri 2026-04-03 15:29 UTC"
 }
 ```
@@ -23,9 +23,9 @@ user: Conversation info (untrusted metadata):
 Sender (untrusted metadata):
 ```json
 {
-  "label": "aaaa (390464238)",
+  "label": "390464238 (390464238)",
   "id": "390464238",
-  "name": "aaaa",
+  "name": "390464238",
   "username": "user5555500000"
 }
 ```
@@ -37,7 +37,7 @@ user: Conversation info (untrusted metadata):
 {
   "message_id": "361",
   "sender_id": "390464238",
-  "sender": "aaaa",
+  "sender": "390464238",
   "timestamp": "Fri 2026-04-03 15:30 UTC"
 }
 ```
@@ -45,9 +45,9 @@ user: Conversation info (untrusted metadata):
 Sender (untrusted metadata):
 ```json
 {
-  "label": "aaaa (390464238)",
+  "label": "390464238 (390464238)",
   "id": "390464238",
-  "name": "aaaa",
+  "name": "390464238",
   "username": "user5555500000"
 }
 ```
