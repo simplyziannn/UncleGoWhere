@@ -28,3 +28,7 @@ UncleGoWhere was developed to explore:
 ## Notes
 
 This repository accompanies the project report and presentation slides, which contain the full architecture, design rationale, implementation details, evaluation, and limitations. The README is intentionally brief.
+
+## Contributors
+- Lee Zi An
+- Goh Jin Long Abdillah
